@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>知识图谱 RAG 系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/static/assets/css/styles.css" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-dark bg-dark">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">📚 知识图谱 RAG 系统</span>
+            <span class="navbar-text text-light" id="systemStatus">
+                <span class="badge bg-success">运行中</span>
+            </span>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        <div class="row">
+            <!-- 左侧：文档上传 -->
+            <div class="col-md-3">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">📄 文档上传</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="fileInput" class="form-label">选择文件</label>
+                            <input
+                                type="file"
+                                id="fileInput"
+                                class="form-control"
+                                accept=".pdf,.jpg,.jpeg,.png,.bmp,.doc,.docx,.ppt,.pptx,.txt,.md"
+                            >
+                            <div class="form-text">
+                                支持: PDF, 图片, Office, 文本
+                            </div>
+                        </div>
+                        <button onclick="uploadFile()" class="btn btn-primary w-100">
+                            <span id="uploadBtnText">上传文档</span>
+                            <span id="uploadSpinner" class="spinner-border spinner-border-sm d-none" role="status"></span>
+                        </button>
+
+                        <hr class="my-3">
+
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="mb-0">文档列表</h6>
+                            <button onclick="refreshDocumentList()" class="btn btn-sm btn-outline-secondary">
+                                🔄
+                            </button>
+                        </div>
+                        <div id="documentList" class="list-group" style="max-height: 500px; overflow-y: auto;">
+                            <div class="text-center text-muted py-3">
+                                <small>暂无文档</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 中间：知识查询 -->
+            <div class="col-md-4">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">💬 知识查询</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="queryInput" class="form-label">输入问题</label>
+                            <textarea
+                                id="queryInput"
+                                class="form-control"
+                                rows="3"
+                                placeholder="例如: 什么是机器学习？"
+                            ></textarea>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="modeSelect" class="form-label">查询模式</label>
+                            <select id="modeSelect" class="form-select">
+                                <option value="mix" selected>混合模式 (推荐)</option>
+                                <option value="local">本地模式</option>
+                                <option value="global">全局模式</option>
+                                <option value="hybrid">混合检索</option>
+                                <option value="naive">简单检索</option>
+                            </select>
+                        </div>
+
+                        <button onclick="executeQuery()" class="btn btn-success w-100 mb-3">
+                            <span id="queryBtnText">查询</span>
+                            <span id="querySpinner" class="spinner-border spinner-border-sm d-none" role="status"></span>
+                        </button>
+
+                        <div id="queryResult"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右侧：知识图谱 -->
+            <div class="col-md-5">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">🕸️ 知识图谱</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-2">
+                            <button onclick="loadGraph()" class="btn btn-sm btn-outline-primary me-2">
+                                刷新图谱
+                            </button>
+                            <button onclick="resetGraph()" class="btn btn-sm btn-outline-secondary">
+                                重置视图
+                            </button>
+                            <span id="graphSpinner" class="spinner-border spinner-border-sm d-none ms-2" role="status"></span>
+                        </div>
+                        <div id="graphContainer" style="height: 600px; border: 1px solid #ddd; border-radius: 4px;"></div>
+                        <div id="graphStats" class="mt-2 text-muted small"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 节点详情模态框 -->
+    <div class="modal fade" id="nodeModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="nodeModalTitle">节点详情</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="nodeModalBody">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vis-network@9.1.2/dist/vis-network.min.js"></script>
+    <script src="/static/assets/js/config.js"></script>
+    <script src="/static/assets/js/upload.js"></script>
+    <script src="/static/assets/js/query.js"></script>
+    <script src="/static/assets/js/graph.js"></script>
+    <script src="/static/assets/js/app.js"></script>
+</body>
+</html>

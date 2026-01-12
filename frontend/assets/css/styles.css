@@ -1,0 +1,187 @@
+/* 知识图谱 RAG 系统样式 */
+
+:root {
+    --primary-color: #0d6efd;
+    --success-color: #198754;
+    --info-color: #0dcaf0;
+    --warning-color: #ffc107;
+    --danger-color: #dc3545;
+}
+
+body {
+    background-color: #f8f9fa;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* 导航栏 */
+.navbar {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* 卡片样式 */
+.card {
+    border: none;
+    margin-bottom: 20px;
+}
+
+.card-header {
+    font-weight: 600;
+}
+
+/* 文档列表 */
+.document-item {
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.document-item:hover {
+    background-color: #f8f9fa;
+}
+
+.status-badge {
+    font-size: 0.75rem;
+}
+
+/* 查询结果 */
+#queryResult {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.query-answer {
+    background-color: #f8f9fa;
+    border-left: 4px solid var(--success-color);
+    padding: 15px;
+    border-radius: 4px;
+    margin-top: 10px;
+}
+
+.query-answer h6 {
+    color: var(--success-color);
+    font-weight: 600;
+}
+
+.query-meta {
+    font-size: 0.85rem;
+    color: #6c757d;
+    margin-top: 10px;
+}
+
+/* 知识图谱容器 */
+#graphContainer {
+    background-color: #ffffff;
+}
+
+#graphStats {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+/* 进度条 */
+.upload-progress {
+    height: 4px;
+    background-color: var(--primary-color);
+    transition: width 0.3s ease;
+}
+
+/* 状态徽章颜色 */
+.status-processing {
+    background-color: var(--warning-color);
+}
+
+.status-completed {
+    background-color: var(--success-color);
+}
+
+.status-failed {
+    background-color: var(--danger-color);
+}
+
+/* 加载动画 */
+.spinner-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(255, 255, 255, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    .col-md-3, .col-md-4, .col-md-5 {
+        margin-bottom: 20px;
+    }
+
+    #graphContainer {
+        height: 400px !important;
+    }
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* 工具提示 */
+.tooltip-inner {
+    max-width: 300px;
+}
+
+/* 错误提示 */
+.error-message {
+    background-color: #f8d7da;
+    border: 1px solid #f5c6cb;
+    color: #721c24;
+    padding: 12px;
+    border-radius: 4px;
+    margin-top: 10px;
+}
+
+.error-message strong {
+    display: block;
+    margin-bottom: 5px;
+}
+
+/* 成功提示 */
+.success-message {
+    background-color: #d4edda;
+    border: 1px solid #c3e6cb;
+    color: #155724;
+    padding: 12px;
+    border-radius: 4px;
+    margin-top: 10px;
+}
+
+/* 空状态 */
+.empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: #6c757d;
+}
+
+.empty-state-icon {
+    font-size: 3rem;
+    margin-bottom: 15px;
+    opacity: 0.5;
+}
