@@ -63,30 +63,34 @@ services:
       - rag_network
 
   # Celery Worker - Background Task Processing
-  celery_worker:
-    build: ./backend
-    container_name: rag_celery_worker
-    command: celery -A app.tasks.celery_app worker --loglevel=info --concurrency=4
-    volumes:
-      - ./backend:/app
-      - ./data:/data
-    environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/1
-      - DATABASE_URL=postgresql://rag_user:rag_password@postgres:5432/rag_db
-      - QDRANT_URL=http://qdrant:6333
-      - REDIS_URL=redis://redis:6379/0
-      - MINIO_ENDPOINT=minio:9000
-      - MINIO_ACCESS_KEY=minioadmin
-      - MINIO_SECRET_KEY=minioadmin
-    depends_on:
-      - redis
-      - postgres
-      - qdrant
-      - minio
-    restart: unless-stopped
-    networks:
-      - rag_network
+  # Note: For development, you can run Celery worker locally instead
+  # Run: celery -A app.tasks.celery_app worker --loglevel=info
+  # Uncomment below to run in Docker:
+
+  # celery_worker:
+  #   build: ./backend
+  #   container_name: rag_celery_worker
+  #   command: celery -A app.tasks.celery_app worker --loglevel=info --concurrency=4
+  #   volumes:
+  #     - ./backend:/app
+  #     - ./data:/data
+  #   environment:
+  #     - CELERY_BROKER_URL=redis://redis:6379/0
+  #     - CELERY_RESULT_BACKEND=redis://redis:6379/1
+  #     - DATABASE_URL=postgresql://rag_user:rag_password@postgres:5432/rag_db
+  #     - QDRANT_URL=http://qdrant:6333
+  #     - REDIS_URL=redis://redis:6379/0
+  #     - MINIO_ENDPOINT=minio:9000
+  #     - MINIO_ACCESS_KEY=minioadmin
+  #     - MINIO_SECRET_KEY=minioadmin
+  #   depends_on:
+  #     - redis
+  #     - postgres
+  #     - qdrant
+  #     - minio
+  #   restart: unless-stopped
+  #   networks:
+  #     - rag_network
 
   # FastAPI Backend (Optional - for full stack deployment)
   # Uncomment to run backend in Docker
