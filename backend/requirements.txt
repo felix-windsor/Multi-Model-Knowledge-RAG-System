@@ -43,6 +43,33 @@ weasyprint>=60.0
 pygments>=2.15.0
 
 # ============================================
+# V2.0 Performance Optimization Dependencies
+# ============================================
+
+# Vector Database
+qdrant-client>=1.7.0
+
+# Database ORM & Migrations
+sqlalchemy>=2.0.0
+asyncpg>=0.29.0
+alembic>=1.13.0
+
+# Redis Client
+redis>=5.0.0
+
+# Object Storage (MinIO)
+minio>=7.2.0
+
+# Task Queue
+celery>=5.3.0
+
+# Async HTTP Client (with HTTP/2 support)
+httpx[http2]>=0.26.0
+
+# Semantic Similarity for Cache
+sentence-transformers>=2.3.0
+
+# ============================================
 # 注意事项
 # ============================================
 # 1. Office 文档转换需要安装 LibreOffice (外部程序,非 Python 包)
@@ -52,3 +79,6 @@ pygments>=2.15.0
 #
 # 2. knowledge_graph_rag 模块是从 raganything 源码复制而来
 #    不需要再安装 pip install raganything
+#
+# 3. V2.0 优化需要运行 Docker 容器 (Qdrant, Redis, PostgreSQL, MinIO)
+#    运行: docker-compose up -d
