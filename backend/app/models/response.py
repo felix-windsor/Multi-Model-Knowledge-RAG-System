@@ -38,6 +38,8 @@ class QueryResponse(BaseModel):
     answer: str = Field(..., description="回答内容")
     sources: List[str] = Field(default_factory=list, description="来源文件列表")
     query_time: float = Field(..., description="查询耗时（秒）")
+    cache_hit: bool = Field(default=False, description="是否命中缓存（V2.0）")
+    cache_similarity: Optional[float] = Field(default=None, description="缓存相似度（V2.0）")
 
 
 class GraphNode(BaseModel):

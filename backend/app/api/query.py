@@ -7,11 +7,15 @@ from fastapi.responses import StreamingResponse
 from app.dependencies import get_rag_instance
 from app.models.request import QueryRequest
 from app.models.response import QueryResponse
+from app.services.semantic_cache import get_semantic_cache
 
 router = APIRouter()
 
 # V2.0: Check if streaming is enabled
 ENABLE_QUERY_STREAMING = os.getenv("ENABLE_QUERY_STREAMING", "false").lower() == "true"
+
+# V2.0: Get semantic cache instance
+semantic_cache = get_semantic_cache()
 
 
 @router.post("/", response_model=QueryResponse)
@@ -29,6 +33,18 @@ async def query_knowledge(
     try:
         start_time = time.time()
 
+        # V2.0: 尝试从语义缓存获取结果
+        if semantic_cache:
+            cached_result = await semantic_cache.get(request.question, request.mode)
+            if cached_result:
+                return QueryResponse(
+                    answer=cached_result['answer'],
+                    sources=cached_result.get('metadata', {}).get('sources', []),
+                    query_time=cached_result['query_time'],
+                    cache_hit=True,
+                    cache_similarity=cached_result.get('cache_similarity')
+                )
+
         # 执行查询
         answer = await rag.aquery(
             request.question,
@@ -39,6 +55,16 @@ async def query_knowledge(
 
         # TODO: 从 answer 中提取来源信息
         sources = []
+
+        # V2.0: 将结果存入语义缓存
+        if semantic_cache:
+            await semantic_cache.set(
+                query=request.question,
+                mode=request.mode,
+                answer=answer,
+                query_time=query_time,
+                metadata={'sources': sources}
+            )
 
         return QueryResponse(
             answer=answer,
