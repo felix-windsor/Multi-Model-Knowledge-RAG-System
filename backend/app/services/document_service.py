@@ -1,6 +1,7 @@
 """文档处理服务"""
 import os
 import uuid
+import aiofiles
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, List, Optional
@@ -42,12 +43,13 @@ class DocumentService:
         # 确保上传目录存在
         Path(upload_dir).mkdir(parents=True, exist_ok=True)
 
-        # 保存文件
+        # 保存文件（使用异步 I/O）
         file_path = os.path.join(upload_dir, f"{doc_id}_{file.filename}")
         content = await file.read()
 
-        with open(file_path, "wb") as f:
-            f.write(content)
+        # V2.0: Async file I/O to prevent blocking event loop
+        async with aiofiles.open(file_path, "wb") as f:
+            await f.write(content)
 
         return doc_id, file_path, len(content)
 

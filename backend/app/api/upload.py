@@ -1,4 +1,5 @@
 """文档上传 API"""
+import os
 from fastapi import APIRouter, UploadFile, File, BackgroundTasks, Depends, HTTPException
 from app.dependencies import get_rag_instance, get_settings
 from app.services.document_service import DocumentService
@@ -6,6 +7,18 @@ from app.models.response import UploadResponse
 from app.config import Settings
 
 router = APIRouter()
+
+# V2.0: Import Celery tasks if available
+USE_CELERY = os.getenv("USE_CELERY", "false").lower() == "true"
+if USE_CELERY:
+    try:
+        from app.tasks.document_tasks import process_document_task
+        CELERY_AVAILABLE = True
+    except ImportError:
+        CELERY_AVAILABLE = False
+        print("Celery tasks not available, falling back to BackgroundTasks")
+else:
+    CELERY_AVAILABLE = False
 
 
 @router.post("/upload", response_model=UploadResponse)
@@ -51,13 +64,20 @@ async def upload_document(
             file_size
         )
 
-        # 后台处理文档
-        background_tasks.add_task(
-            DocumentService.process_document,
-            rag,
-            doc_id,
-            file_path
-        )
+        # V2.0: 选择后台处理方式
+        if CELERY_AVAILABLE:
+            # 使用 Celery 进行后台处理（推荐）
+            task = process_document_task.delay(doc_id, file_path, file.filename)
+            message = f"文件上传成功，正在后台处理中 (Task ID: {task.id})"
+        else:
+            # 降级到 FastAPI BackgroundTasks
+            background_tasks.add_task(
+                DocumentService.process_document,
+                rag,
+                doc_id,
+                file_path
+            )
+            message = "文件上传成功，正在处理中"
 
         return UploadResponse(
             success=True,
@@ -65,7 +85,7 @@ async def upload_document(
             filename=file.filename,
             size=file_size,
             status="processing",
-            message="文件上传成功，正在处理中"
+            message=message
         )
 
     except Exception as e:
