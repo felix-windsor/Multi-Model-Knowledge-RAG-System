@@ -2,10 +2,115 @@
  * 知识查询功能
  */
 
+// V2.0: 支持流式响应
+const USE_STREAMING = true; // 可以改为从配置读取
+
 /**
  * 执行查询
  */
 async function executeQuery() {
+    if (USE_STREAMING) {
+        return executeQueryStreaming();
+    }
+    return executeQueryLegacy();
+}
+
+/**
+ * 执行查询（流式响应） - V2.0
+ */
+async function executeQueryStreaming() {
+    const questionInput = document.getElementById('queryInput');
+    const modeSelect = document.getElementById('modeSelect');
+    const question = questionInput.value.trim();
+    const mode = modeSelect.value;
+
+    if (!question) {
+        showError('请输入问题');
+        return;
+    }
+
+    // 显示加载状态
+    setQueryButtonLoading(true);
+    const resultDiv = document.getElementById('queryResult');
+    resultDiv.innerHTML = `
+        <div class="query-answer streaming">
+            <h6>回答:</h6>
+            <div class="answer-content" id="streamingAnswer"></div>
+            <div class="query-meta" id="streamingMeta">
+                <span>查询模式: ${QUERY_MODES[mode]}</span>
+                <span class="ms-3">正在生成...</span>
+            </div>
+        </div>
+    `;
+
+    const answerDiv = document.getElementById('streamingAnswer');
+    let accumulatedAnswer = '';
+    let startTime = Date.now();
+
+    try {
+        const response = await fetch(API_ENDPOINTS.queryStream, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                question: question,
+                mode: mode
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error('流式查询失败');
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value, { stream: true });
+            const lines = chunk.split('\n');
+
+            for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                    const data = JSON.parse(line.slice(6));
+
+                    if (data.type === 'chunk') {
+                        accumulatedAnswer += data.content;
+                        answerDiv.innerHTML = formatAnswer(accumulatedAnswer);
+                        // 自动滚动到底部
+                        answerDiv.scrollTop = answerDiv.scrollHeight;
+                    } else if (data.type === 'done') {
+                        const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+                        document.getElementById('streamingMeta').innerHTML = `
+                            <span>查询模式: ${QUERY_MODES[mode]}</span>
+                            <span class="ms-3">耗时: ${data.query_time.toFixed(2)}秒</span>
+                        `;
+                    } else if (data.type === 'error') {
+                        throw new Error(data.message);
+                    }
+                }
+            }
+        }
+    } catch (error) {
+        console.error('流式查询失败:', error);
+        resultDiv.innerHTML = `
+            <div class="error-message">
+                <strong>查询失败</strong>
+                <div>${error.message}</div>
+            </div>
+        `;
+    } finally {
+        setQueryButtonLoading(false);
+    }
+}
+
+/**
+ * 执行查询（传统方式）
+ */
+async function executeQueryLegacy() {
     const questionInput = document.getElementById('queryInput');
     const modeSelect = document.getElementById('modeSelect');
     const question = questionInput.value.trim();

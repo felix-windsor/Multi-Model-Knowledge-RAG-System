@@ -8,6 +8,7 @@ const API_ENDPOINTS = {
     upload: `${API_BASE_URL}/upload`,
     documents: `${API_BASE_URL}/documents`,
     query: `${API_BASE_URL}/query`,
+    queryStream: `${API_BASE_URL}/query/stream`,  // V2.0: SSE streaming endpoint
     graph: `${API_BASE_URL}/graph`,
 };
 
