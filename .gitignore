@@ -58,6 +58,16 @@ data/output/*
 !data/storage/.gitkeep
 !data/output/.gitkeep
 
+# Docker Data Volumes
+data/minio_data/
+data/postgres_data/
+data/qdrant_storage/
+data/redis_data/
+
+# Project Documentation (Local only)
+PROJECT_PROPOSAL.md
+汇报.md
+
 # Miscellaneous
 .DS_Store
 TODO.md
