@@ -77,6 +77,10 @@ tiktoken_cache/
 # unit-test files
 test_*
 
+# Backend test and rethink directories
+backend/tests/
+backend/rethink/
+
 # Cline files
 memory-bank/
 
