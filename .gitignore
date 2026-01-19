@@ -80,6 +80,7 @@ test_*
 # Backend test and rethink directories
 backend/tests/
 backend/rethink/
+backend/proposal/
 
 # Cline files
 memory-bank/

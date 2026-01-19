@@ -245,7 +245,8 @@ class DocumentService:
             )
 
             # 处理文档（这是主要耗时操作）
-            await rag.process_document_complete(file_path)
+            # Note: formula=False to avoid transformers compatibility issue with MinerU Unimernet
+            await rag.process_document_complete(file_path, formula=False)
 
             # 步骤 4: 处理多模态内容
             DocumentService.update_status(
