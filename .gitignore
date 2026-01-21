@@ -13,7 +13,6 @@ env/
 venv/
 
 *.env*
-.env_example
 
 # Build / Distribution
 dist/
@@ -84,10 +83,3 @@ backend/proposal/
 
 # Cline files
 memory-bank/
-
-# AI
-.claude/
-.cursor/
-.claude-plugin/
-skills/
-CLAUDE.md

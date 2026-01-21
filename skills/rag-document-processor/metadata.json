@@ -1,0 +1,74 @@
+{
+  "version": "1.0.0",
+  "organization": "RAG Development Team",
+  "date": "January 2026",
+  "abstract": "Comprehensive document processing skill for multimodal Knowledge Graph RAG systems. Contains 32 rules across 6 priority categories, from critical format detection and content extraction to advanced performance optimization. Each rule includes detailed implementation examples comparing incorrect vs. correct approaches, specific performance metrics, and integration points with existing RAG system components. Designed for AI agents to ensure reliable, efficient, and scalable document ingestion.",
+  "categories": [
+    {
+      "name": "Format Detection & Validation",
+      "priority": 1,
+      "impact": "CRITICAL",
+      "rules": 6
+    },
+    {
+      "name": "Content Extraction",
+      "priority": 2,
+      "impact": "CRITICAL",
+      "rules": 8
+    },
+    {
+      "name": "Entity & Relation Extraction",
+      "priority": 3,
+      "impact": "HIGH",
+      "rules": 6
+    },
+    {
+      "name": "Error Handling & Recovery",
+      "priority": 4,
+      "impact": "HIGH",
+      "rules": 5
+    },
+    {
+      "name": "Performance Optimization",
+      "priority": 5,
+      "impact": "MEDIUM",
+      "rules": 4
+    },
+    {
+      "name": "Batch Processing",
+      "priority": 6,
+      "impact": "MEDIUM",
+      "rules": 3
+    }
+  ],
+  "supported_formats": [
+    "pdf",
+    "docx",
+    "pptx",
+    "xlsx",
+    "jpg",
+    "png",
+    "txt",
+    "md"
+  ],
+  "dependencies": [
+    "PyPDF2",
+    "python-magic",
+    "Pillow",
+    "tesseract-ocr",
+    "libreoffice"
+  ],
+  "references": [
+    "https://pypdf2.readthedocs.io/",
+    "https://github.com/ahupp/python-magic",
+    "https://tesseract-ocr.github.io/",
+    "https://www.libreoffice.org/",
+    "https://github.com/opendatalab/MinerU"
+  ],
+  "performance_targets": {
+    "throughput": "50-100 pages/minute",
+    "memory_per_document": "<500MB",
+    "entity_extraction_accuracy": "95%+",
+    "success_rate": "99.5%"
+  }
+}
