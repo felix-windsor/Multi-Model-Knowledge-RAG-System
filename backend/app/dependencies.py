@@ -1,4 +1,5 @@
 """FastAPI 依赖注入"""
+import os
 import sys
 from pathlib import Path
 from functools import lru_cache
@@ -78,8 +79,19 @@ async def get_rag_instance() -> RAGAnything:
                 base_url=rerank_config["base_url"]
             )
 
-        # 准备 LightRAG 的额外参数
-        lightrag_kwargs = {}
+        # 准备 LightRAG 的额外参数（包括性能优化参数）
+        lightrag_kwargs = {
+            "embedding_batch_num": int(os.getenv("EMBEDDING_BATCH_NUM", "10")),
+            "embedding_func_max_async": int(os.getenv("EMBEDDING_FUNC_MAX_ASYNC", "8")),
+        }
+
+        # 添加 embedding 缓存配置（如果 LightRAG 支持）
+        if os.getenv("EMBEDDING_CACHE_ENABLED", "true").lower() == "true":
+            lightrag_kwargs["embedding_cache_config"] = {
+                "enabled": True,
+                "similarity_threshold": float(os.getenv("EMBEDDING_CACHE_THRESHOLD", "0.95")),
+            }
+
         if rerank_func:
             lightrag_kwargs["rerank_model_func"] = rerank_func
 

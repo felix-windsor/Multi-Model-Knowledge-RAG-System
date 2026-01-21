@@ -18,10 +18,12 @@ from lightrag.utils import EmbeddingFunc
 import asyncio
 import requests
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Thread pool for synchronous HTTP requests to Ollama
-_ollama_executor = ThreadPoolExecutor(max_workers=1)
+# 从环境变量读取并发数，默认 4
+_ollama_max_workers = int(os.getenv("EMBEDDING_MAX_WORKERS", "4"))
+_ollama_executor = ThreadPoolExecutor(max_workers=_ollama_max_workers)
 
 
 def _sync_ollama_embed_single(text: str, embed_model: str, host: str, max_retries: int = 5) -> List[float]:
@@ -63,12 +65,28 @@ def _sync_ollama_embed_single(text: str, embed_model: str, host: str, max_retrie
 
 def _sync_ollama_embed_batch(texts: List[str], embed_model: str, host: str) -> List[List[float]]:
     """
-    Synchronous batch embedding function.
+    并行批量 embedding 函数
+    使用 ThreadPoolExecutor 并行处理多个文本，大幅提升处理速度
     """
-    embeddings = []
-    for text in texts:
-        embedding = _sync_ollama_embed_single(text, embed_model, host)
-        embeddings.append(embedding)
+    max_workers = int(os.getenv("EMBEDDING_MAX_WORKERS", "4"))
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # 提交所有任务并记录索引
+        future_to_idx = {
+            executor.submit(_sync_ollama_embed_single, text, embed_model, host): idx
+            for idx, text in enumerate(texts)
+        }
+
+        # 按原始顺序收集结果
+        embeddings = [None] * len(texts)
+        for future in as_completed(future_to_idx):
+            idx = future_to_idx[future]
+            try:
+                embeddings[idx] = future.result()
+            except Exception as e:
+                print(f"ERROR: Embedding failed for text at index {idx}: {str(e)}")
+                raise
+
     return embeddings
 
 

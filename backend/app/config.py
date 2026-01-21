@@ -57,6 +57,15 @@ class Settings(BaseSettings):
     max_concurrent_files: int = 2
 
     # ============================================
+    # Embedding 性能优化配置
+    # ============================================
+    embedding_batch_num: int = 10  # LightRAG 批处理数量
+    embedding_func_max_async: int = 8  # LightRAG 最大异步数
+    embedding_max_workers: int = 4  # 线程池并发数（用于 Ollama）
+    embedding_cache_enabled: bool = True  # 是否启用缓存
+    embedding_cache_threshold: float = 0.95  # 缓存相似度阈值
+
+    # ============================================
     # 服务器配置
     # ============================================
     host: str = "0.0.0.0"

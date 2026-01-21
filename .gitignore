@@ -88,4 +88,6 @@ memory-bank/
 # AI
 .claude/
 .cursor/
+.claude-plugin/
+skills/
 CLAUDE.md
