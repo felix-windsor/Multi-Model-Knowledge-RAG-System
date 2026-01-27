@@ -83,3 +83,4 @@ backend/proposal/
 
 # Cline files
 memory-bank/
+.worktrees/
