@@ -6,5 +6,6 @@ with multiple instances, use the database storage backend instead.
 """
 
 from .document import LocalDocumentStorage
+from .task import LocalTaskStorage
 
-__all__ = ["LocalDocumentStorage"]
+__all__ = ["LocalDocumentStorage", "LocalTaskStorage"]
