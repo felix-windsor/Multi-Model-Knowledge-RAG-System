@@ -40,6 +40,9 @@ temp/
 .vscode/
 .vscode/settings.json
 
+# Claude Code local settings
+.claude/settings.local.json
+
 # Framework-specific files
 local_neo4jWorkDir/
 neo4jWorkDir/
@@ -62,6 +65,11 @@ data/output/*
 TODO.md
 ignore_this.txt
 *.ignore.*
+nul
+
+# Temporary install/setup scripts in root
+install_*.ps1
+find_*.ps1
 
 # Project-specific files
 dickens*/
@@ -84,3 +92,4 @@ backend/proposal/
 # Cline files
 memory-bank/
 .worktrees/
+.trees/

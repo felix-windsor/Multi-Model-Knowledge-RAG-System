@@ -19,11 +19,12 @@ async def query_knowledge(
     - **question**: 用户问题
     - **mode**: 查询模式 (local, global, hybrid, naive, mix)
     - **doc_ids**: 可选的文档 ID 列表（暂未实现过滤）
+
+    注意: 来源追踪功能暂不支持，sources 字段返回空列表
     """
     try:
         start_time = time.time()
 
-        # 执行查询
         answer = await rag.aquery(
             request.question,
             mode=request.mode
@@ -31,12 +32,9 @@ async def query_knowledge(
 
         query_time = time.time() - start_time
 
-        # TODO: 从 answer 中提取来源信息
-        sources = []
-
         return QueryResponse(
             answer=answer,
-            sources=sources,
+            sources=[],
             query_time=query_time
         )
 

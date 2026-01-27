@@ -5,5 +5,8 @@
       "Bash(findstr:*)",
       "Bash(taskkill //F //PID 81516)"
     ]
+  },
+  "enabledPlugins": {
+    "superpowers@claude-plugins-official": true
   }
 }

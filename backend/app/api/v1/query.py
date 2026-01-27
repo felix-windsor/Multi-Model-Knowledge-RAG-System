@@ -1,5 +1,4 @@
 """V1 智能问答 API"""
-import time
 import asyncio
 from typing import AsyncGenerator
 from fastapi import APIRouter, Depends, HTTPException
@@ -8,7 +7,7 @@ from app.dependencies import get_rag_instance
 from app.middleware.auth import verify_api_key
 from app.middleware.response import wrap_response, ErrorCode
 from app.models.request import V1QueryRequest
-from app.models.response import V1QueryData, V1QuerySource, V1QueryUsage
+from app.models.response import V1QueryData, V1QueryUsage
 
 router = APIRouter()
 
@@ -29,8 +28,10 @@ async def query_knowledge(
     - **mode**: 查询模式 (mix, local, global, hybrid, naive)
     - **doc_ids**: 限定查询的文档 ID（暂未实现）
     - **top_k**: 返回结果数量
+
+    注意: 当前版本不支持来源追踪 (sources)、实体提取 (entities) 和 Token 统计 (usage)，
+    这些字段返回空值作为预留接口。
     """
-    # 验证查询模式
     if request.mode not in VALID_MODES:
         raise HTTPException(
             status_code=400,
@@ -41,34 +42,17 @@ async def query_knowledge(
         )
 
     try:
-        start_time = time.time()
-
-        # 执行查询
         answer = await rag.aquery(
             request.question,
             mode=request.mode
         )
 
-        query_time = time.time() - start_time
-
-        # TODO: 从 answer 中提取来源信息和实体信息
-        # 目前 LightRAG 返回的是纯文本，需要后续增强来提取结构化信息
-        sources = []
-        entities = []
-
-        # TODO: 获取 Token 使用量
-        # 目前 LightRAG 没有返回 Token 使用信息
-        usage = V1QueryUsage(
-            prompt_tokens=0,
-            completion_tokens=0
-        )
-
         return wrap_response(
             data=V1QueryData(
                 answer=answer,
-                sources=sources,
-                entities=entities,
-                usage=usage
+                sources=[],
+                entities=[],
+                usage=V1QueryUsage()
             ).model_dump()
         )
 

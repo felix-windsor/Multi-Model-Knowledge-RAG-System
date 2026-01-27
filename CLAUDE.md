@@ -27,6 +27,25 @@ scripts/start.bat  # Windows
 
 Access: http://localhost:8000 (frontend) | http://localhost:8000/docs (API docs)
 
+## Testing
+
+```bash
+# Run all tests
+cd backend
+python -m pytest tests/
+
+# Run a single test file
+python -m pytest tests/test_api_key.py
+
+# Run with verbose output
+python -m pytest tests/ -v
+```
+
+Tests are standalone scripts that can also be run directly:
+```bash
+python backend/tests/test_api_key.py
+```
+
 ## Architecture
 
 ```
@@ -171,6 +190,16 @@ EMBEDDING_MODEL=bge-m3:latest
 EMBEDDING_DIM=1024
 ```
 
+**Config Inheritance:** Vision and Embedding configs inherit from LLM if left empty. See `env.example` for all options including Vision, Rerank, and mixed provider configurations.
+
+**Performance Tuning:**
+```
+EMBEDDING_BATCH_NUM=10          # Batch size for embeddings
+EMBEDDING_FUNC_MAX_ASYNC=8      # Max concurrent embedding calls
+EMBEDDING_CACHE_ENABLED=true    # Enable embedding cache
+EMBEDDING_CACHE_THRESHOLD=0.95  # Cache similarity threshold
+```
+
 ## API Key Configuration
 
 V1 API 支持 API Key 认证，通过 `.env` 文件配置：
@@ -196,6 +225,57 @@ curl -H "X-API-Key: sk-key1" http://localhost:8000/api/v1/health
 
 - **LibreOffice** - Required for Office document conversion (doc, docx, ppt, pptx, xls, xlsx)
 - **MinerU** - Document parser (installed via requirements.txt as `mineru[core]`)
+
+## Coding Standards
+
+### No TODO Comments
+
+**CRITICAL RULE**: Do NOT leave TODO comments in code. Either implement the feature completely or don't write it at all.
+
+**❌ Bad:**
+```python
+# TODO: Extract source information from answer
+sources = []
+
+# TODO: Get token usage
+usage = {"prompt_tokens": 0, "completion_tokens": 0}
+```
+
+**✅ Good - Option 1 (Complete Implementation):**
+```python
+# Extract sources from answer metadata
+sources = extract_sources_from_answer(answer)
+
+# Get actual token usage from LLM response
+usage = {
+    "prompt_tokens": answer.usage.prompt_tokens,
+    "completion_tokens": answer.usage.completion_tokens
+}
+```
+
+**✅ Good - Option 2 (Don't Implement Yet):**
+```python
+# Simply omit the unimplemented feature
+# Return minimal response until ready to implement
+return {"answer": answer}
+```
+
+**Why this rule?**
+- TODOs accumulate technical debt
+- They create confusion about what's implemented vs planned
+- They make code look unfinished and unprofessional
+- If something is important, implement it now; if not, remove it
+
+**Exceptions:**
+- Only use TODO in experimental branches or prototypes
+- NEVER in main/production branches
+
+### Code Quality Guidelines
+
+- Write complete, production-ready code
+- If a feature is complex, break it into smaller PRs
+- Document limitations clearly in docstrings, not as TODOs
+- Use GitHub Issues/Jira for future work tracking, not code comments
 
 ## Notes
 
