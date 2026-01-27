@@ -7,5 +7,6 @@ with multiple instances, use the database storage backend instead.
 
 from .document import LocalDocumentStorage
 from .task import LocalTaskStorage
+from .webhook import LocalWebhookStorage
 
-__all__ = ["LocalDocumentStorage", "LocalTaskStorage"]
+__all__ = ["LocalDocumentStorage", "LocalTaskStorage", "LocalWebhookStorage"]
