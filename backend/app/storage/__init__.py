@@ -6,13 +6,15 @@ through the abstract interface pattern.
 
 Usage:
     from app.storage import StorageManager, Document, DocumentStatus
+    from app.storage import get_storage_manager
 
-    # Get storage manager via dependency injection
+    # Get storage manager via factory function
     storage = get_storage_manager()
     doc = await storage.documents.get(doc_id)
 """
 
 from .base import DocumentStorage, StorageManager, TaskStorage, WebhookStorage
+from .factory import create_storage_manager, get_storage_manager, reset_storage_manager
 from .models import Document, DocumentStatus, Task, TaskStatus, Webhook, WebhookStatus
 
 __all__ = [
@@ -29,4 +31,8 @@ __all__ = [
     "TaskStorage",
     "WebhookStorage",
     "StorageManager",
+    # Factory functions
+    "create_storage_manager",
+    "get_storage_manager",
+    "reset_storage_manager",
 ]
