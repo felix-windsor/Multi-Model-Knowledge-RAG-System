@@ -1,4 +1,5 @@
 """FastAPI 主应用"""
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -8,12 +9,25 @@ from app.api import routes
 from app.api.v1 import router as v1_router
 from app.config import settings
 from app.middleware.response import wrap_response, ErrorCode
+from app.storage import get_storage_manager, close_storage
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan events"""
+    # Startup
+    await get_storage_manager()  # Initialize storage
+    yield
+    # Shutdown
+    await close_storage()
+
 
 # 创建 FastAPI 应用
 app = FastAPI(
     title="Knowledge Graph RAG System",
     version="1.0.0",
     description="基于 RAGAnything 的多模态知识图谱 RAG 系统，支持企业级 API 集成",
+    lifespan=lifespan,
     openapi_tags=[
         {"name": "V1 - Documents", "description": "文档管理 API"},
         {"name": "V1 - Query", "description": "智能问答 API"},

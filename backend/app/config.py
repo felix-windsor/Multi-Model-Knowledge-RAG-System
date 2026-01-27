@@ -66,6 +66,27 @@ class Settings(BaseSettings):
     embedding_cache_threshold: float = 0.95  # 缓存相似度阈值
 
     # ============================================
+    # Storage Backend Configuration
+    # ============================================
+    storage_backend: str = "local"  # local | database
+
+    # PostgreSQL
+    postgres_user: str = "rag"
+    postgres_password: str = "rag123"
+    postgres_db: str = "ragdb"
+    database_url: Optional[str] = None
+
+    # Qdrant
+    qdrant_host: str = "localhost"
+    qdrant_port: int = 6333
+
+    # Neo4j
+    neo4j_uri: str = "bolt://localhost:7687"
+    neo4j_user: str = "neo4j"
+    neo4j_password: str = "rag123456"
+    neo4j_database: str = "neo4j"
+
+    # ============================================
     # 服务器配置
     # ============================================
     host: str = "0.0.0.0"
