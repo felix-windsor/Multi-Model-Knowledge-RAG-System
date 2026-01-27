@@ -11,6 +11,7 @@ sys.path.insert(0, str(backend_path))
 from knowledge_graph_rag import RAGAnything, RAGAnythingConfig
 from app.services.llm_factory import ModelFactory, LLMFactory
 from app.config import settings
+from app.storage import StorageManager, get_storage_manager
 
 
 _rag_instance = None
@@ -111,3 +112,15 @@ async def get_rag_instance() -> RAGAnything:
 def get_settings():
     """获取配置实例"""
     return settings
+
+
+async def get_storage() -> StorageManager:
+    """
+    FastAPI dependency for storage manager.
+
+    Use with Depends() to inject storage into route handlers:
+        @router.get("/documents")
+        async def list_documents(storage: StorageManager = Depends(get_storage)):
+            return await storage.documents.list()
+    """
+    return await get_storage_manager()
