@@ -6,8 +6,10 @@ storage backends for documents, tasks, and webhooks.
 """
 
 from .connection import DatabasePool, check_database_health
+from .document import DatabaseDocumentStorage
 
 __all__ = [
     "DatabasePool",
     "check_database_health",
+    "DatabaseDocumentStorage",
 ]
