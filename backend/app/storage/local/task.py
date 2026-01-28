@@ -332,3 +332,27 @@ class LocalTaskStorage(TaskStorage):
 
         self._save_tasks(tasks)
         return True
+
+    async def get_by_documents_batch(self, doc_ids: List[UUID]) -> List[Task]:
+        """Retrieve all tasks for multiple documents in a single query.
+
+        Args:
+            doc_ids: List of document IDs to query tasks for.
+
+        Returns:
+            List of all tasks associated with the given document IDs.
+        """
+        if not doc_ids:
+            return []
+
+        tasks = self._load_tasks()
+        doc_ids_set = {str(doc_id) for doc_id in doc_ids}
+
+        result = [
+            self._task_from_dict(data)
+            for data in tasks.values()
+            if data["document_id"] in doc_ids_set
+        ]
+
+        result.sort(key=lambda x: x.created_at, reverse=True)
+        return result
