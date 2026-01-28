@@ -1,5 +1,6 @@
 """Local file-based task storage implementation."""
 
+import copy
 import json
 import uuid
 from datetime import datetime
@@ -27,6 +28,7 @@ class LocalTaskStorage(TaskStorage):
         """
         self.storage_dir = Path(storage_dir)
         self.tasks_file = self.storage_dir / "tasks.json"
+        self._tx_snapshot: Optional[Dict[str, dict]] = None
         self._ensure_storage_exists()
 
     def _ensure_storage_exists(self) -> None:
@@ -356,3 +358,21 @@ class LocalTaskStorage(TaskStorage):
 
         result.sort(key=lambda x: x.created_at, reverse=True)
         return result
+
+    async def begin_transaction(self) -> None:
+        """Create a snapshot of current state for potential rollback."""
+        self._tx_snapshot = copy.deepcopy(self._load_tasks())
+
+    async def commit_transaction(self) -> None:
+        """Commit changes by clearing the snapshot.
+
+        Changes are already persisted to disk during individual operations,
+        so commit just clears the rollback snapshot.
+        """
+        self._tx_snapshot = None
+
+    async def rollback_transaction(self) -> None:
+        """Rollback to snapshot state by restoring from the saved snapshot."""
+        if self._tx_snapshot is not None:
+            self._save_tasks(self._tx_snapshot)
+            self._tx_snapshot = None
