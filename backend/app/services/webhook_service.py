@@ -1,182 +1,238 @@
-"""Webhook 回调服务"""
-import asyncio
-import httpx
-from datetime import datetime
-from typing import Dict, Any, Optional
+"""Webhook 管理服务（重构版 - 使用 StorageManager）"""
+
 import logging
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
+from uuid import UUID
+
+import httpx
+
+from app.storage.base import StorageManager
+from app.storage.models import Webhook, WebhookStatus
 
 logger = logging.getLogger(__name__)
 
 
 class WebhookService:
-    """Webhook 回调服务"""
+    """Webhook 管理服务
+
+    This service provides webhook management operations using the storage
+    abstraction layer. It supports webhook registration, delivery with
+    automatic retries, and failure handling.
+    """
 
     # 默认超时时间（秒）
-    DEFAULT_TIMEOUT = 30
+    DEFAULT_TIMEOUT = 10
 
-    # 最大重试次数
-    MAX_RETRIES = 3
+    # 重试间隔基数（分钟）
+    RETRY_INTERVAL_MINUTES = 5
 
-    # 重试间隔（秒）
-    RETRY_DELAY = 5
-
-    @staticmethod
-    async def send_webhook(
-        callback_url: str,
-        event: str,
-        data: Dict[str, Any],
-        timeout: int = DEFAULT_TIMEOUT,
-        retries: int = MAX_RETRIES
-    ) -> bool:
-        """
-        发送 Webhook 回调
+    def __init__(self, storage: StorageManager) -> None:
+        """Initialize webhook service with storage manager.
 
         Args:
-            callback_url: 回调 URL
-            event: 事件类型 (如 document.completed, document.failed)
-            data: 事件数据
-            timeout: 超时时间（秒）
-            retries: 重试次数
+            storage: StorageManager instance for data persistence.
+        """
+        self.storage = storage
+
+    async def create_webhook(
+        self,
+        document_id: UUID,
+        callback_url: str,
+        event_type: str = "document.processed",
+    ) -> Webhook:
+        """注册 Webhook 回调
+
+        Args:
+            document_id: ID of the document to monitor.
+            callback_url: URL to call when the event occurs.
+            event_type: Type of event to trigger the webhook.
 
         Returns:
-            是否成功发送
+            The created Webhook.
         """
-        if not callback_url:
-            return False
+        return await self.storage.webhooks.create(
+            document_id=document_id,
+            callback_url=callback_url,
+            event_type=event_type,
+        )
 
-        payload = {
-            "event": event,
-            "data": data,
-            "timestamp": datetime.now().isoformat()
-        }
+    async def get_webhook(self, webhook_id: UUID) -> Optional[Webhook]:
+        """获取 Webhook 信息
 
-        for attempt in range(retries + 1):
-            try:
-                async with httpx.AsyncClient(timeout=timeout) as client:
-                    response = await client.post(
-                        callback_url,
-                        json=payload,
-                        headers={
-                            "Content-Type": "application/json",
-                            "User-Agent": "KnowledgeGraphRAG-Webhook/1.0"
-                        }
-                    )
+        Args:
+            webhook_id: Webhook ID.
 
-                    if response.status_code in [200, 201, 202, 204]:
-                        logger.info(f"Webhook sent successfully to {callback_url}: {event}")
-                        return True
-                    else:
-                        logger.warning(
-                            f"Webhook failed with status {response.status_code}: {callback_url}"
-                        )
+        Returns:
+            The Webhook if found, None otherwise.
+        """
+        return await self.storage.webhooks.get(webhook_id)
 
-            except httpx.TimeoutException:
-                logger.warning(f"Webhook timeout (attempt {attempt + 1}/{retries + 1}): {callback_url}")
-            except httpx.RequestError as e:
-                logger.warning(f"Webhook request error (attempt {attempt + 1}/{retries + 1}): {e}")
-            except Exception as e:
-                logger.error(f"Webhook unexpected error: {e}")
-                return False
+    async def get_webhooks_by_document(
+        self,
+        document_id: UUID,
+    ) -> List[Webhook]:
+        """获取文档的所有 Webhook
 
-            # 如果不是最后一次尝试，等待后重试
-            if attempt < retries:
-                await asyncio.sleep(WebhookService.RETRY_DELAY)
+        Args:
+            document_id: Document ID.
 
-        logger.error(f"Webhook failed after {retries + 1} attempts: {callback_url}")
+        Returns:
+            List of Webhook objects for the document.
+        """
+        return await self.storage.webhooks.get_by_document(document_id)
+
+    async def deliver_webhook(
+        self,
+        webhook: Webhook,
+        payload: Dict[str, Any],
+    ) -> bool:
+        """发送 Webhook 回调（实际 HTTP 请求）
+
+        Attempts to deliver the webhook payload to the registered URL.
+        On success, marks the webhook as delivered. On failure, schedules
+        a retry with exponential backoff.
+
+        Args:
+            webhook: The Webhook to deliver.
+            payload: The payload to send.
+
+        Returns:
+            True if delivery was successful, False otherwise.
+        """
+        try:
+            async with httpx.AsyncClient(
+                timeout=self.DEFAULT_TIMEOUT
+            ) as client:
+                response = await client.post(
+                    webhook.callback_url,
+                    json=payload,
+                    headers={
+                        "Content-Type": "application/json",
+                        "User-Agent": "KnowledgeGraphRAG-Webhook/1.0",
+                    },
+                )
+                response.raise_for_status()
+
+            # 标记为已发送
+            await self.storage.webhooks.mark_delivered(webhook.id)
+            logger.info(
+                f"Webhook delivered successfully to {webhook.callback_url}"
+            )
+            return True
+
+        except httpx.TimeoutException as e:
+            error_msg = f"Timeout: {e}"
+            logger.warning(
+                f"Webhook timeout for {webhook.callback_url}: {error_msg}"
+            )
+        except httpx.HTTPStatusError as e:
+            error_msg = f"HTTP {e.response.status_code}: {e.response.text[:200]}"
+            logger.warning(
+                f"Webhook HTTP error for {webhook.callback_url}: {error_msg}"
+            )
+        except httpx.RequestError as e:
+            error_msg = f"Request error: {e}"
+            logger.warning(
+                f"Webhook request error for {webhook.callback_url}: {error_msg}"
+            )
+        except Exception as e:
+            error_msg = f"Unexpected error: {e}"
+            logger.error(
+                f"Webhook unexpected error for {webhook.callback_url}: {error_msg}"
+            )
+
+        # 标记为失败，计划重试
+        retry_after = datetime.now() + timedelta(
+            minutes=self.RETRY_INTERVAL_MINUTES * (webhook.retry_count + 1)
+        )
+        await self.storage.webhooks.mark_failed(
+            webhook.id,
+            error_msg,
+            retry_after,
+        )
         return False
 
-    @staticmethod
-    async def notify_document_completed(
-        callback_url: str,
-        doc_id: str,
-        task_id: str,
-        entities_count: int = 0,
-        relations_count: int = 0
-    ) -> bool:
-        """
-        通知文档处理完成
+    async def deliver_document_event(
+        self,
+        document_id: UUID,
+        event_type: str,
+        data: Dict[str, Any],
+    ) -> int:
+        """发送文档事件到所有注册的 Webhook
 
         Args:
-            callback_url: 回调 URL
-            doc_id: 文档 ID
-            task_id: 任务 ID
-            entities_count: 实体数量
-            relations_count: 关系数量
+            document_id: Document ID.
+            event_type: Event type (e.g., "document.processed").
+            data: Event data payload.
 
         Returns:
-            是否成功发送
+            Number of successfully delivered webhooks.
         """
-        return await WebhookService.send_webhook(
-            callback_url=callback_url,
-            event="document.completed",
-            data={
-                "doc_id": doc_id,
-                "task_id": task_id,
-                "status": "completed",
-                "entities_count": entities_count,
-                "relations_count": relations_count
-            }
-        )
+        webhooks = await self.storage.webhooks.get_by_document(document_id)
+        success_count = 0
 
-    @staticmethod
-    async def notify_document_failed(
-        callback_url: str,
-        doc_id: str,
-        task_id: str,
-        error_message: str
-    ) -> bool:
+        for webhook in webhooks:
+            # 只发送匹配事件类型且待发送的 webhook
+            if webhook.event_type != event_type:
+                continue
+            if webhook.status != WebhookStatus.PENDING:
+                continue
+
+            payload = {
+                "event": event_type,
+                "document_id": str(document_id),
+                "data": data,
+                "timestamp": datetime.now().isoformat(),
+            }
+
+            if await self.deliver_webhook(webhook, payload):
+                success_count += 1
+
+        return success_count
+
+    async def retry_failed_webhooks(self) -> int:
+        """重试失败的 Webhook
+
+        Retrieves all pending webhooks that are due for retry and
+        attempts to deliver them.
+
+        Returns:
+            Number of webhooks retried.
         """
-        通知文档处理失败
+        pending = await self.storage.webhooks.list_pending(limit=100)
+        retry_count = 0
+        now = datetime.now()
+
+        for webhook in pending:
+            # 检查是否到了重试时间
+            if webhook.next_retry_at and webhook.next_retry_at > now:
+                continue
+
+            # 检查是否超过最大重试次数
+            if webhook.retry_count >= webhook.max_retries:
+                continue
+
+            # 构造 payload
+            payload = {
+                "event": webhook.event_type,
+                "document_id": str(webhook.document_id),
+                "timestamp": now.isoformat(),
+                "retry_attempt": webhook.retry_count + 1,
+            }
+
+            await self.deliver_webhook(webhook, payload)
+            retry_count += 1
+
+        return retry_count
+
+    async def list_pending_webhooks(self, limit: int = 10) -> List[Webhook]:
+        """获取待发送的 Webhook 列表
 
         Args:
-            callback_url: 回调 URL
-            doc_id: 文档 ID
-            task_id: 任务 ID
-            error_message: 错误信息
+            limit: Maximum number of webhooks to return.
 
         Returns:
-            是否成功发送
+            List of pending Webhook objects.
         """
-        return await WebhookService.send_webhook(
-            callback_url=callback_url,
-            event="document.failed",
-            data={
-                "doc_id": doc_id,
-                "task_id": task_id,
-                "status": "failed",
-                "error_message": error_message
-            }
-        )
-
-    @staticmethod
-    async def notify_document_progress(
-        callback_url: str,
-        doc_id: str,
-        task_id: str,
-        progress: int,
-        step: str
-    ) -> bool:
-        """
-        通知文档处理进度
-
-        Args:
-            callback_url: 回调 URL
-            doc_id: 文档 ID
-            task_id: 任务 ID
-            progress: 进度 (0-100)
-            step: 当前步骤
-
-        Returns:
-            是否成功发送
-        """
-        return await WebhookService.send_webhook(
-            callback_url=callback_url,
-            event="document.progress",
-            data={
-                "doc_id": doc_id,
-                "task_id": task_id,
-                "status": "processing",
-                "progress": progress,
-                "step": step
-            }
-        )
+        return await self.storage.webhooks.list_pending(limit)
