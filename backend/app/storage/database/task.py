@@ -42,6 +42,7 @@ class DatabaseTaskStorage(TaskStorage):
             task_type=row["task_type"],
             status=TaskStatus(row["status"]),
             progress=row["progress"],
+            step=row.get("step"),
             retry_count=row["retry_count"],
             max_retries=row["max_retries"],
             last_error=row["last_error"],
@@ -174,13 +175,16 @@ class DatabaseTaskStorage(TaskStorage):
 
         return result == "UPDATE 1"
 
-    async def update_progress(self, task_id: UUID, progress: int) -> bool:
+    async def update_progress(
+        self, task_id: UUID, progress: int, step: Optional[str] = None
+    ) -> bool:
         """Update the progress of a task.
 
         Args:
             task_id: Unique identifier of the task.
             progress: Progress percentage (0-100). Values outside this range
                 will be clamped.
+            step: Optional description of the current processing step.
 
         Returns:
             True if successful, False if task not found.
@@ -188,11 +192,19 @@ class DatabaseTaskStorage(TaskStorage):
         progress = max(0, min(100, progress))
 
         async with DatabasePool.connection() as conn:
-            result = await conn.execute(
-                "UPDATE tasks SET progress = $1 WHERE id = $2",
-                progress,
-                task_id,
-            )
+            if step is not None:
+                result = await conn.execute(
+                    "UPDATE tasks SET progress = $1, step = $2 WHERE id = $3",
+                    progress,
+                    step,
+                    task_id,
+                )
+            else:
+                result = await conn.execute(
+                    "UPDATE tasks SET progress = $1 WHERE id = $2",
+                    progress,
+                    task_id,
+                )
 
         return result == "UPDATE 1"
 

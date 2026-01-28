@@ -60,6 +60,7 @@ class Task(BaseModel):
     task_type: str
     status: TaskStatus = TaskStatus.PENDING
     progress: int = Field(default=0, ge=0, le=100)
+    step: Optional[str] = None
     retry_count: int = 0
     max_retries: int = 3
     last_error: Optional[str] = None

@@ -176,12 +176,15 @@ class TaskStorage(ABC):
         pass
 
     @abstractmethod
-    async def update_progress(self, task_id: UUID, progress: int) -> bool:
+    async def update_progress(
+        self, task_id: UUID, progress: int, step: Optional[str] = None
+    ) -> bool:
         """Update the progress of a task.
 
         Args:
             task_id: Unique identifier of the task.
             progress: Progress percentage (0-100).
+            step: Optional description of the current processing step.
 
         Returns:
             True if successful, False if task not found.

@@ -71,6 +71,7 @@ class LocalTaskStorage(TaskStorage):
             task_type=data["task_type"],
             status=TaskStatus(data["status"]),
             progress=data.get("progress", 0),
+            step=data.get("step"),
             retry_count=data.get("retry_count", 0),
             max_retries=data.get("max_retries", 3),
             last_error=data.get("last_error"),
@@ -109,6 +110,7 @@ class LocalTaskStorage(TaskStorage):
             "task_type": task_type,
             "status": TaskStatus.PENDING.value,
             "progress": 0,
+            "step": None,
             "retry_count": 0,
             "max_retries": 3,
             "last_error": None,
@@ -213,12 +215,15 @@ class LocalTaskStorage(TaskStorage):
         self._save_tasks(tasks)
         return True
 
-    async def update_progress(self, task_id: UUID, progress: int) -> bool:
+    async def update_progress(
+        self, task_id: UUID, progress: int, step: Optional[str] = None
+    ) -> bool:
         """Update the progress of a task.
 
         Args:
             task_id: Unique identifier of the task.
             progress: Progress percentage (0-100).
+            step: Optional description of the current processing step.
 
         Returns:
             True if successful, False if task not found.
@@ -230,6 +235,8 @@ class LocalTaskStorage(TaskStorage):
             return False
 
         tasks[task_key]["progress"] = max(0, min(100, progress))
+        if step is not None:
+            tasks[task_key]["step"] = step
 
         self._save_tasks(tasks)
         return True
