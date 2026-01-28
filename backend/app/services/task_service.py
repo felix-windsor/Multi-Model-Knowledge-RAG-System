@@ -1,207 +1,152 @@
-"""任务管理服务"""
-import uuid
-from datetime import datetime
-from typing import Dict, Any, List, Optional
-from enum import Enum
+"""任务管理服务（重构版 - 使用 StorageManager）"""
 
+from typing import Any, Dict, List, Optional
+from uuid import UUID
 
-class TaskStatus(str, Enum):
-    """任务状态枚举"""
-    PENDING = "pending"
-    PROCESSING = "processing"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
-
-
-# 任务存储（内存存储，生产环境应使用数据库）
-_task_store: Dict[str, Dict[str, Any]] = {}
+from app.storage.base import StorageManager
+from app.storage.models import Task, TaskStatus
 
 
 class TaskService:
-    """任务管理服务"""
+    """任务管理服务
 
-    @staticmethod
-    def generate_task_id() -> str:
-        """生成任务 ID"""
-        return f"task_{uuid.uuid4().hex[:12]}"
+    This service provides task management operations using the storage
+    abstraction layer. It supports task lifecycle management including
+    creation, progress tracking, completion, and cancellation.
+    """
 
-    @staticmethod
-    def create_task(
-        doc_id: str,
+    def __init__(self, storage: StorageManager) -> None:
+        """Initialize task service with storage manager.
+
+        Args:
+            storage: StorageManager instance for data persistence.
+        """
+        self.storage = storage
+
+    async def create_task(
+        self,
+        document_id: UUID,
         task_type: str = "document_processing",
-        callback_url: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """
-        创建新任务
+    ) -> Task:
+        """创建新任务
 
         Args:
-            doc_id: 关联的文档 ID
-            task_type: 任务类型
-            callback_url: Webhook 回调 URL
+            document_id: ID of the document this task processes.
+            task_type: Type of task (e.g., "document_processing").
 
         Returns:
-            任务信息字典
+            The created Task.
         """
-        task_id = TaskService.generate_task_id()
-        now = datetime.now()
-
-        task = {
-            "task_id": task_id,
-            "doc_id": doc_id,
-            "task_type": task_type,
-            "status": TaskStatus.PENDING.value,
-            "progress": 0,
-            "step": "任务已创建",
-            "callback_url": callback_url,
-            "created_at": now.isoformat(),
-            "updated_at": now.isoformat(),
-            "completed_at": None,
-            "error_message": None,
-            "result": None
-        }
-
-        _task_store[task_id] = task
-        return task
-
-    @staticmethod
-    def get_task(task_id: str) -> Optional[Dict[str, Any]]:
-        """获取任务信息"""
-        return _task_store.get(task_id)
-
-    @staticmethod
-    def get_task_by_doc_id(doc_id: str) -> Optional[Dict[str, Any]]:
-        """根据文档 ID 获取最新任务"""
-        tasks = [t for t in _task_store.values() if t["doc_id"] == doc_id]
-        if not tasks:
-            return None
-        # 返回最新的任务
-        return max(tasks, key=lambda t: t["created_at"])
-
-    @staticmethod
-    def update_task(
-        task_id: str,
-        status: Optional[str] = None,
-        progress: Optional[int] = None,
-        step: Optional[str] = None,
-        error_message: Optional[str] = None,
-        result: Optional[Dict[str, Any]] = None
-    ) -> Optional[Dict[str, Any]]:
-        """
-        更新任务状态
-
-        Args:
-            task_id: 任务 ID
-            status: 新状态
-            progress: 进度 (0-100)
-            step: 当前步骤描述
-            error_message: 错误信息
-            result: 任务结果
-
-        Returns:
-            更新后的任务信息
-        """
-        if task_id not in _task_store:
-            return None
-
-        task = _task_store[task_id]
-        now = datetime.now()
-
-        if status is not None:
-            task["status"] = status
-
-        if progress is not None:
-            task["progress"] = progress
-
-        if step is not None:
-            task["step"] = step
-
-        if error_message is not None:
-            task["error_message"] = error_message
-
-        if result is not None:
-            task["result"] = result
-
-        task["updated_at"] = now.isoformat()
-
-        # 如果任务完成或失败，记录完成时间
-        if status in [TaskStatus.COMPLETED.value, TaskStatus.FAILED.value, TaskStatus.CANCELLED.value]:
-            task["completed_at"] = now.isoformat()
-
-        return task
-
-    @staticmethod
-    def cancel_task(task_id: str) -> bool:
-        """
-        取消任务
-
-        Args:
-            task_id: 任务 ID
-
-        Returns:
-            是否成功取消
-        """
-        if task_id not in _task_store:
-            return False
-
-        task = _task_store[task_id]
-
-        # 只能取消 pending 或 processing 状态的任务
-        if task["status"] not in [TaskStatus.PENDING.value, TaskStatus.PROCESSING.value]:
-            return False
-
-        TaskService.update_task(
-            task_id,
-            status=TaskStatus.CANCELLED.value,
-            step="任务已取消"
+        return await self.storage.tasks.create(
+            document_id=document_id,
+            task_type=task_type,
         )
 
-        return True
-
-    @staticmethod
-    def get_all_tasks(
-        status_filter: Optional[str] = None,
-        limit: int = 100
-    ) -> List[Dict[str, Any]]:
-        """
-        获取所有任务
+    async def get_task(self, task_id: UUID) -> Optional[Task]:
+        """获取任务信息
 
         Args:
-            status_filter: 状态过滤
-            limit: 最大返回数量
+            task_id: Task ID.
 
         Returns:
-            任务列表
+            The Task if found, None otherwise.
         """
-        tasks = list(_task_store.values())
+        return await self.storage.tasks.get(task_id)
 
-        if status_filter:
-            tasks = [t for t in tasks if t["status"] == status_filter]
-
-        # 按创建时间倒序排序
-        tasks.sort(key=lambda t: t["created_at"], reverse=True)
-
-        return tasks[:limit]
-
-    @staticmethod
-    def cleanup_old_tasks(max_age_hours: int = 24):
-        """
-        清理旧任务
+    async def get_tasks_by_document(self, document_id: UUID) -> List[Task]:
+        """获取文档的所有任务
 
         Args:
-            max_age_hours: 最大保留时间（小时）
+            document_id: Document ID.
+
+        Returns:
+            List of Task objects for the document.
         """
-        now = datetime.now()
-        to_delete = []
+        return await self.storage.tasks.get_by_document(document_id)
 
-        for task_id, task in _task_store.items():
-            created_at = datetime.fromisoformat(task["created_at"])
-            age_hours = (now - created_at).total_seconds() / 3600
+    async def start_task(self, task_id: UUID) -> bool:
+        """启动任务
 
-            # 只清理已完成/失败/取消的任务
-            if task["status"] in [TaskStatus.COMPLETED.value, TaskStatus.FAILED.value, TaskStatus.CANCELLED.value]:
-                if age_hours > max_age_hours:
-                    to_delete.append(task_id)
+        Args:
+            task_id: Task ID.
 
-        for task_id in to_delete:
-            del _task_store[task_id]
+        Returns:
+            True if successful, False if task not found.
+        """
+        return await self.storage.tasks.start(task_id)
+
+    async def update_progress(
+        self,
+        task_id: UUID,
+        progress: int,
+        step: Optional[str] = None,
+    ) -> bool:
+        """更新任务进度
+
+        Args:
+            task_id: Task ID.
+            progress: Progress percentage (0-100).
+            step: Optional description of current processing step.
+
+        Returns:
+            True if successful, False if task not found.
+        """
+        return await self.storage.tasks.update_progress(
+            task_id,
+            progress,
+            step,
+        )
+
+    async def complete_task(
+        self,
+        task_id: UUID,
+        result: Optional[Dict[str, Any]] = None,
+    ) -> bool:
+        """完成任务
+
+        Args:
+            task_id: Task ID.
+            result: Optional result data from the task.
+
+        Returns:
+            True if successful, False if task not found.
+        """
+        return await self.storage.tasks.complete(task_id, result)
+
+    async def fail_task(
+        self,
+        task_id: UUID,
+        error: str,
+    ) -> bool:
+        """标记任务失败
+
+        Args:
+            task_id: Task ID.
+            error: Error message describing the failure.
+
+        Returns:
+            True if successful, False if task not found.
+        """
+        return await self.storage.tasks.fail(task_id, error)
+
+    async def cancel_task(self, task_id: UUID) -> bool:
+        """取消任务
+
+        Args:
+            task_id: Task ID.
+
+        Returns:
+            True if successful, False if task not found or cannot be cancelled.
+        """
+        return await self.storage.tasks.cancel(task_id)
+
+    async def list_pending_tasks(self, limit: int = 10) -> List[Task]:
+        """获取待处理任务列表
+
+        Args:
+            limit: Maximum number of tasks to return.
+
+        Returns:
+            List of pending Task objects.
+        """
+        return await self.storage.tasks.list_pending(limit)
