@@ -84,27 +84,6 @@ if [ "$STORAGE_BACKEND" = "qdrant_neo4j" ]; then
         exit 1
     fi
 
-    # Wait for PostgreSQL
-    if ! wait_for_service "PostgreSQL" "http://localhost:5432"; then
-        # PostgreSQL doesn't have HTTP endpoint, so we check differently
-        echo "Checking PostgreSQL with docker exec..."
-        POSTGRES_USER="${POSTGRES_USER:-rag}"
-        POSTGRES_DB="${POSTGRES_DB:-ragdb}"
-
-        for i in {1..30}; do
-            if docker-compose exec -T postgres pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB" > /dev/null 2>&1; then
-                echo "PostgreSQL is ready!"
-                break
-            fi
-            if [ $i -eq 30 ]; then
-                echo "ERROR: PostgreSQL failed to become ready"
-                exit 1
-            fi
-            echo "  Attempt $i/30 - PostgreSQL not ready yet..."
-            sleep 2
-        done
-    fi
-
     echo ""
     echo "All database services are ready!"
     echo ""

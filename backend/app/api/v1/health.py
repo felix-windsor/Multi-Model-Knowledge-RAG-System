@@ -65,6 +65,7 @@ async def get_storage_stats(settings: Settings) -> Dict[str, Any]:
             stats["qdrant"] = {"status": "error", "error": str(e)}
 
         # Get Neo4j statistics
+        driver = None
         try:
             from neo4j import GraphDatabase
 
@@ -91,14 +92,15 @@ async def get_storage_stats(settings: Settings) -> Dict[str, Any]:
                     "relationship_count": relationship_count,
                 }
 
-            driver.close()
-
         except ImportError:
             logger.warning("Neo4j driver not installed")
             stats["neo4j"] = {"status": "driver_not_installed"}
         except Exception as e:
             logger.warning(f"Failed to fetch Neo4j stats: {e}")
             stats["neo4j"] = {"status": "error", "error": str(e)}
+        finally:
+            if driver is not None:
+                driver.close()
 
         return stats
 
