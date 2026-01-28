@@ -1,6 +1,6 @@
 """V1 API 路由注册"""
 from fastapi import APIRouter
-from app.api.v1 import documents, query, graph, tasks, config
+from app.api.v1 import documents, query, graph, tasks, config, health
 
 # 创建 v1 路由
 router = APIRouter()
@@ -33,4 +33,9 @@ router.include_router(
 router.include_router(
     config.router,
     tags=["V1 - Config & Health"]
+)
+
+router.include_router(
+    health.router,
+    tags=["Health"]
 )

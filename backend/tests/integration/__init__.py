@@ -1,1 +1,1 @@
-"""Integration tests package."""
+"""Integration tests for RAG system with database backends."""

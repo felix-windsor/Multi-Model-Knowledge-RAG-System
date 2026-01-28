@@ -9,32 +9,6 @@ from app.config import Settings
 router = APIRouter()
 
 
-@router.get("/health")
-async def health_check(
-    api_key: str = Depends(get_api_key)  # 健康检查不强制要求 API Key
-):
-    """
-    健康检查
-
-    返回服务状态和基本信息
-    """
-    # 检查 RAG 是否初始化
-    rag_initialized = False
-    try:
-        rag = await get_rag_instance()
-        rag_initialized = rag is not None
-    except Exception:
-        pass
-
-    return wrap_response(
-        data=V1HealthData(
-            status="healthy",
-            version="1.0.0",
-            rag_initialized=rag_initialized
-        ).model_dump()
-    )
-
-
 @router.get("/config")
 async def get_config(
     settings: Settings = Depends(get_settings),

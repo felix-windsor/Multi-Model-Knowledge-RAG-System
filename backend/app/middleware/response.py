@@ -106,6 +106,7 @@ class ErrorCode:
     STORAGE_ERROR = 50003
     WEBHOOK_ERROR = 50004
     PROCESSING_ERROR = 50005
+    SERVICE_UNAVAILABLE = 50301
 
 
 # 错误消息映射
@@ -127,4 +128,5 @@ ERROR_MESSAGES = {
     ErrorCode.STORAGE_ERROR: "Storage error",
     ErrorCode.WEBHOOK_ERROR: "Webhook callback error",
     ErrorCode.PROCESSING_ERROR: "Document processing error",
+    ErrorCode.SERVICE_UNAVAILABLE: "Service unavailable",
 }

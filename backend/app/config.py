@@ -57,33 +57,39 @@ class Settings(BaseSettings):
     max_concurrent_files: int = 2
 
     # ============================================
-    # Embedding 性能优化配置
+    # Performance Tuning Configuration
     # ============================================
-    embedding_batch_num: int = 10  # LightRAG 批处理数量
-    embedding_func_max_async: int = 8  # LightRAG 最大异步数
-    embedding_max_workers: int = 4  # 线程池并发数（用于 Ollama）
-    embedding_cache_enabled: bool = True  # 是否启用缓存
-    embedding_cache_threshold: float = 0.95  # 缓存相似度阈值
+    embedding_batch_num: int = 20  # LightRAG batch processing size
+    embedding_func_max_async: int = 16  # LightRAG max async concurrency
+    embedding_max_workers: int = 4  # Thread pool workers (for Ollama)
+    embedding_cache_enabled: bool = True  # Enable embedding cache
+    embedding_cache_threshold: float = 0.95  # Cache similarity threshold
+    chunk_token_size: int = 1200  # Token size per chunk
+    chunk_overlap_token_size: int = 100  # Overlap between chunks
+    entity_extract_max_gleaning: int = 1  # Max entity extraction iterations
+    query_top_k: int = 10  # Number of top results to return
 
     # ============================================
     # Storage Backend Configuration
     # ============================================
-    storage_backend: str = "local"  # local | database
+    storage_backend: str = "local"  # local | qdrant_neo4j
 
-    # PostgreSQL
+    # PostgreSQL (legacy, for future use)
     postgres_user: str = "rag"
     postgres_password: str = "rag123"
     postgres_db: str = "ragdb"
     database_url: Optional[str] = None
 
-    # Qdrant
-    qdrant_host: str = "localhost"
-    qdrant_port: int = 6333
+    # Qdrant Configuration
+    qdrant_url: str = "http://localhost:6333"
+    qdrant_collection_name: str = "rag_collection"
+    qdrant_host: str = "localhost"  # legacy, kept for compatibility
+    qdrant_port: int = 6333  # legacy, kept for compatibility
 
-    # Neo4j
+    # Neo4j Configuration
     neo4j_uri: str = "bolt://localhost:7687"
     neo4j_user: str = "neo4j"
-    neo4j_password: str = "rag123456"
+    neo4j_password: str = ""
     neo4j_database: str = "neo4j"
 
     # ============================================
@@ -142,6 +148,31 @@ class Settings(BaseSettings):
         }
         
         return config
+
+
+def validate_storage_config(backend: str, config: Settings) -> None:
+    """
+    Validate storage configuration completeness
+
+    Args:
+        backend: Storage backend type ("local" or "qdrant_neo4j")
+        config: Settings instance
+
+    Raises:
+        ValueError: If required configuration is missing
+    """
+    if backend == "qdrant_neo4j":
+        required = {
+            "QDRANT_URL": config.qdrant_url,
+            "NEO4J_URI": config.neo4j_uri,
+            "NEO4J_USER": config.neo4j_user,
+            "NEO4J_PASSWORD": config.neo4j_password,
+        }
+        missing = [k for k, v in required.items() if not v]
+        if missing:
+            raise ValueError(
+                f"STORAGE_BACKEND=qdrant_neo4j requires: {', '.join(missing)}"
+            )
 
 
 # 全局配置实例

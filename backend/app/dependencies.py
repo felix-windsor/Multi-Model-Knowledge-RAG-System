@@ -3,6 +3,9 @@ import os
 import sys
 from pathlib import Path
 from functools import lru_cache
+import httpx
+import logging
+from typing import Dict, Optional
 
 from fastapi import Depends
 
@@ -15,100 +18,211 @@ from app.services.llm_factory import ModelFactory, LLMFactory
 from app.services.document_service import DocumentService
 from app.services.task_service import TaskService
 from app.services.webhook_service import WebhookService
-from app.config import settings
+from app.config import settings, Settings, validate_storage_config
 from app.storage import StorageManager, get_storage_manager
 
+logger = logging.getLogger(__name__)
 
-_rag_instance = None
+
+_rag_instance: Optional[RAGAnything] = None
+_storage_healthy: Optional[bool] = None  # None means not yet checked
 
 
-async def get_rag_instance() -> RAGAnything:
+async def create_rag_instance(backend: str) -> RAGAnything:
     """
-    获取 RAGAnything 单例实例
+    Create RAG instance with specified storage backend
 
-    作为 FastAPI 依赖注入使用
-    支持独立的模型提供商配置
+    Args:
+        backend: Storage backend type ("local" or "qdrant_neo4j")
+
+    Returns:
+        Configured RAGAnything instance
+
+    Raises:
+        ValueError: If configuration is invalid
     """
-    global _rag_instance
+    # Validate configuration
+    validate_storage_config(backend, settings)
 
-    if _rag_instance is None:
-        # 创建 RAG 配置
-        rag_config = RAGAnythingConfig(
-            working_dir=settings.storage_dir,
-            parser="mineru",
-            parse_method="auto",
-            enable_image_processing=True,
-            enable_table_processing=True,
-            enable_equation_processing=True,
-            max_concurrent_files=settings.max_concurrent_files
+    # Create RAG config
+    rag_config = RAGAnythingConfig(
+        working_dir=settings.storage_dir,
+        parser="mineru",
+        parse_method="auto",
+        enable_image_processing=True,
+        enable_table_processing=True,
+        enable_equation_processing=True,
+        max_concurrent_files=settings.max_concurrent_files
+    )
+
+    # Get model configurations
+    llm_config = settings.get_model_config("llm")
+    vision_config = settings.get_model_config("vision")
+    embedding_config = settings.get_model_config("embedding")
+    rerank_config = settings.get_model_config("rerank")
+
+    # Create model functions
+    llm_func = ModelFactory.create_llm_function(
+        provider=llm_config["provider"],
+        model=llm_config["model"],
+        api_key=llm_config["api_key"],
+        base_url=llm_config["base_url"]
+    )
+
+    vision_func = ModelFactory.create_vision_function(
+        provider=vision_config["provider"],
+        model=vision_config["model"],
+        api_key=vision_config["api_key"],
+        base_url=vision_config["base_url"],
+        fallback_llm_func=llm_func
+    )
+
+    embed_func = ModelFactory.create_embedding_function(
+        provider=embedding_config["provider"],
+        model=embedding_config["model"],
+        api_key=embedding_config["api_key"],
+        base_url=embedding_config["base_url"],
+        embedding_dim=settings.embedding_dim
+    )
+
+    rerank_func = None
+    if rerank_config["provider"]:
+        rerank_func = ModelFactory.create_rerank_function(
+            provider=rerank_config["provider"],
+            model=rerank_config["model"],
+            api_key=rerank_config["api_key"],
+            base_url=rerank_config["base_url"]
         )
 
-        # 获取各模型类型的配置（支持配置继承）
-        llm_config = settings.get_model_config("llm")
-        vision_config = settings.get_model_config("vision")
-        embedding_config = settings.get_model_config("embedding")
-        rerank_config = settings.get_model_config("rerank")
+    # LightRAG performance parameters
+    lightrag_kwargs = {
+        "embedding_batch_num": settings.embedding_batch_num,
+        "embedding_func_max_async": settings.embedding_func_max_async,
+        "chunk_token_size": settings.chunk_token_size,
+        "chunk_overlap_token_size": settings.chunk_overlap_token_size,
+        "entity_extract_max_gleaning": settings.entity_extract_max_gleaning,
+        "top_k": settings.query_top_k,
+    }
 
-        # 创建 LLM 函数
-        llm_func = ModelFactory.create_llm_function(
-            provider=llm_config["provider"],
-            model=llm_config["model"],
-            api_key=llm_config["api_key"],
-            base_url=llm_config["base_url"]
-        )
-
-        # 创建 Vision 函数（使用 LLM 作为回退）
-        vision_func = ModelFactory.create_vision_function(
-            provider=vision_config["provider"],
-            model=vision_config["model"],
-            api_key=vision_config["api_key"],
-            base_url=vision_config["base_url"],
-            fallback_llm_func=llm_func
-        )
-
-        # 创建 Embedding 函数（独立配置）
-        embed_func = ModelFactory.create_embedding_function(
-            provider=embedding_config["provider"],
-            model=embedding_config["model"],
-            api_key=embedding_config["api_key"],
-            base_url=embedding_config["base_url"],
-            embedding_dim=settings.embedding_dim
-        )
-
-        # 创建 Rerank 函数（可选）
-        rerank_func = None
-        if rerank_config["provider"]:
-            rerank_func = ModelFactory.create_rerank_function(
-                provider=rerank_config["provider"],
-                model=rerank_config["model"],
-                api_key=rerank_config["api_key"],
-                base_url=rerank_config["base_url"]
-            )
-
-        # 准备 LightRAG 的额外参数（包括性能优化参数）
-        lightrag_kwargs = {
-            "embedding_batch_num": int(os.getenv("EMBEDDING_BATCH_NUM", "10")),
-            "embedding_func_max_async": int(os.getenv("EMBEDDING_FUNC_MAX_ASYNC", "8")),
+    # Add embedding cache configuration
+    if settings.embedding_cache_enabled:
+        lightrag_kwargs["embedding_cache_config"] = {
+            "enabled": True,
+            "similarity_threshold": settings.embedding_cache_threshold,
         }
 
-        # 添加 embedding 缓存配置（如果 LightRAG 支持）
-        if os.getenv("EMBEDDING_CACHE_ENABLED", "true").lower() == "true":
-            lightrag_kwargs["embedding_cache_config"] = {
-                "enabled": True,
-                "similarity_threshold": float(os.getenv("EMBEDDING_CACHE_THRESHOLD", "0.95")),
+    if rerank_func:
+        lightrag_kwargs["rerank_model_func"] = rerank_func
+
+    # Configure storage backend
+    if backend == "qdrant_neo4j":
+        lightrag_kwargs.update({
+            "vector_storage": "QdrantVectorDBStorage",
+            "graph_storage": "Neo4JStorage",
+            "vector_db_storage_cls_kwargs": {
+                "url": settings.qdrant_url,
+                "collection_name": settings.qdrant_collection_name,
+                "timeout": 30,
+                "prefer_grpc": True,
             }
+        })
 
-        if rerank_func:
-            lightrag_kwargs["rerank_model_func"] = rerank_func
+        # Neo4j config via environment variables (LightRAG reads these)
+        os.environ["NEO4J_URI"] = settings.neo4j_uri
+        os.environ["NEO4J_USERNAME"] = settings.neo4j_user
+        os.environ["NEO4J_PASSWORD"] = settings.neo4j_password
+        os.environ["NEO4J_DATABASE"] = settings.neo4j_database
 
-        # 初始化 RAGAnything
-        _rag_instance = RAGAnything(
-            config=rag_config,
-            llm_model_func=llm_func,
-            embedding_func=embed_func,
-            vision_model_func=vision_func,
-            lightrag_kwargs=lightrag_kwargs
-        )
+    # Create RAG instance
+    instance = RAGAnything(
+        config=rag_config,
+        llm_model_func=llm_func,
+        embedding_func=embed_func,
+        vision_model_func=vision_func,
+        lightrag_kwargs=lightrag_kwargs
+    )
+
+    logger.info(f"RAG instance created with backend: {backend}")
+    return instance
+
+
+async def check_storage_health(backend: str, config: Settings) -> Dict[str, bool]:
+    """
+    Check storage backend health status
+
+    Args:
+        backend: Storage backend type
+        config: Settings instance
+
+    Returns:
+        Dictionary with health status for each backend
+        {"qdrant": True/False, "neo4j": True/False}
+    """
+    global _storage_healthy
+    health = {}
+
+    if backend == "qdrant_neo4j":
+        # Check Qdrant
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{config.qdrant_url}/healthz",
+                    timeout=5.0
+                )
+                health["qdrant"] = response.status_code == 200
+        except Exception as e:
+            logger.error(f"Qdrant health check failed: {e}")
+            health["qdrant"] = False
+
+        # Check Neo4j
+        driver = None
+        try:
+            import neo4j
+            driver = neo4j.GraphDatabase.driver(
+                config.neo4j_uri,
+                auth=(config.neo4j_user, config.neo4j_password)
+            )
+            with driver.session(database=config.neo4j_database) as session:
+                result = session.run("RETURN 1")
+                health["neo4j"] = result.single()[0] == 1
+        except Exception as e:
+            logger.error(f"Neo4j health check failed: {e}")
+            health["neo4j"] = False
+        finally:
+            if driver is not None:
+                driver.close()
+
+        # Update global health status
+        _storage_healthy = all(health.values())
+    else:
+        # Local storage is always considered healthy
+        _storage_healthy = True
+
+    return health
+
+
+async def get_rag_instance() -> Optional[RAGAnything]:
+    """
+    Get RAGAnything singleton instance
+
+    Uses STORAGE_BACKEND environment variable to determine backend.
+    Returns None if storage health check failed (graceful degradation).
+    """
+    global _rag_instance, _storage_healthy
+
+    # If health check failed, don't initialize RAG instance
+    if _storage_healthy is False:
+        logger.warning("RAG instance not available: storage health check failed")
+        return None
+
+    if _rag_instance is None:
+        backend = os.getenv("STORAGE_BACKEND", settings.storage_backend)
+        try:
+            _rag_instance = await create_rag_instance(backend)
+        except Exception as e:
+            logger.error(f"Failed to create RAG instance: {e}")
+            _storage_healthy = False
+            return None
 
     return _rag_instance
 

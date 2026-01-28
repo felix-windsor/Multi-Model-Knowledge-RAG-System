@@ -1,4 +1,6 @@
 """FastAPI 主应用"""
+import os
+import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,15 +12,45 @@ from app.api.v1 import router as v1_router
 from app.config import settings
 from app.middleware.response import wrap_response, ErrorCode
 from app.storage import get_storage_manager, close_storage
+from app.dependencies import check_storage_health
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan events"""
+    """
+    Application lifecycle management
+
+    Handles startup health checks and graceful shutdown
+    """
     # Startup
-    await get_storage_manager()  # Initialize storage
+    backend = os.getenv("STORAGE_BACKEND", "local")
+    logger.info(f"Starting with STORAGE_BACKEND={backend}")
+
+    if backend == "qdrant_neo4j":
+        health = await check_storage_health(backend, settings)
+
+        if not all(health.values()):
+            failed = [k for k, v in health.items() if not v]
+            logger.error(
+                f"⚠️  Storage health check failed: {failed}\n"
+                f"   RAG instance will NOT be initialized.\n"
+                f"   API endpoints will return 503 Service Unavailable.\n"
+                f"   Please check Docker services: docker-compose up -d"
+            )
+        else:
+            logger.info("✓ Storage backends healthy")
+    else:
+        logger.info("Using local storage (development mode)")
+
+    # Initialize storage
+    await get_storage_manager()
+
     yield
+
     # Shutdown
+    logger.info("Application shutdown complete")
     await close_storage()
 
 

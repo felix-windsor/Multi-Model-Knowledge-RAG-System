@@ -32,6 +32,18 @@ async def query_knowledge(
     注意: 当前版本不支持来源追踪 (sources)、实体提取 (entities) 和 Token 统计 (usage)，
     这些字段返回空值作为预留接口。
     """
+    # Check if RAG instance is available
+    if rag is None:
+        raise HTTPException(
+            status_code=503,
+            detail=wrap_response(
+                code=ErrorCode.SERVICE_UNAVAILABLE,
+                message="RAG service is unavailable. Storage backend is not ready. "
+                        "Please ensure Docker services (Qdrant/Neo4j) are running if using database storage. "
+                        "Run 'docker compose up -d' to start the services."
+            )
+        )
+
     if request.mode not in VALID_MODES:
         raise HTTPException(
             status_code=400,
@@ -82,6 +94,18 @@ async def query_knowledge_stream(
     - **doc_ids**: 限定查询的文档 ID（暂未实现）
     - **top_k**: 返回结果数量
     """
+    # Check if RAG instance is available
+    if rag is None:
+        raise HTTPException(
+            status_code=503,
+            detail=wrap_response(
+                code=ErrorCode.SERVICE_UNAVAILABLE,
+                message="RAG service is unavailable. Storage backend is not ready. "
+                        "Please ensure Docker services (Qdrant/Neo4j) are running if using database storage. "
+                        "Run 'docker compose up -d' to start the services."
+            )
+        )
+
     # 验证查询模式
     if request.mode not in VALID_MODES:
         raise HTTPException(
