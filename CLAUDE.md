@@ -419,7 +419,7 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - Switching backends will start with an empty knowledge base
 - Backup your data before switching by exporting documents or copying `data/storage/`
 
-**Steps to Switch:**
+**Quick Migration Steps:**
 
 1. **Stop the server**
    ```bash
@@ -459,6 +459,14 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 6. **Re-upload documents**
    - Documents must be uploaded again to populate the new backend
    - Use the web UI or API to upload documents
+
+**For detailed migration instructions**, see [Storage Backend Migration Guide](docs/guides/storage-backend-migration.md) which includes:
+- Prerequisites and preparation steps
+- Step-by-step migration procedures
+- Data backup and restore strategies
+- Comprehensive troubleshooting guide
+- Performance tuning recommendations
+- Best practices for production deployments
 
 ### Viewing Stored Data
 
