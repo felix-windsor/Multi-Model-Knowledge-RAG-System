@@ -158,6 +158,18 @@ async def upload_document(
     - **file**: 要上传的文件
     - **callback_url**: 可选的 Webhook 回调 URL
     """
+    # Check if RAG instance is available
+    if rag is None:
+        raise HTTPException(
+            status_code=503,
+            detail=wrap_response(
+                code=ErrorCode.SERVICE_UNAVAILABLE,
+                message="RAG service is unavailable. Storage backend is not ready. "
+                        "Please ensure Docker services (Qdrant/Neo4j) are running if using database storage. "
+                        "Run 'docker compose up -d' to start the services."
+            )
+        )
+
     # 验证文件类型
     file_ext = (
         "." + file.filename.split(".")[-1].lower() if "." in file.filename else ""
@@ -220,12 +232,25 @@ async def upload_document(
 
 @router.get("")
 async def get_documents(
+    rag=Depends(get_rag_instance),
     doc_svc: DocumentService = Depends(get_document_service),
     api_key: str = Depends(verify_api_key),
 ):
     """
     获取文档列表
     """
+    # Check if RAG instance is available
+    if rag is None:
+        raise HTTPException(
+            status_code=503,
+            detail=wrap_response(
+                code=ErrorCode.SERVICE_UNAVAILABLE,
+                message="RAG service is unavailable. Storage backend is not ready. "
+                        "Please ensure Docker services (Qdrant/Neo4j) are running if using database storage. "
+                        "Run 'docker compose up -d' to start the services."
+            )
+        )
+
     documents = await doc_svc.list_documents_with_status()
 
     doc_list = []
@@ -254,6 +279,7 @@ async def get_documents(
 @router.get("/{doc_id}")
 async def get_document(
     doc_id: str,
+    rag=Depends(get_rag_instance),
     doc_svc: DocumentService = Depends(get_document_service),
     api_key: str = Depends(verify_api_key),
 ):
@@ -262,6 +288,18 @@ async def get_document(
 
     - **doc_id**: 文档 ID
     """
+    # Check if RAG instance is available
+    if rag is None:
+        raise HTTPException(
+            status_code=503,
+            detail=wrap_response(
+                code=ErrorCode.SERVICE_UNAVAILABLE,
+                message="RAG service is unavailable. Storage backend is not ready. "
+                        "Please ensure Docker services (Qdrant/Neo4j) are running if using database storage. "
+                        "Run 'docker compose up -d' to start the services."
+            )
+        )
+
     try:
         uuid_doc_id = UUID(doc_id)
     except ValueError:
@@ -304,6 +342,7 @@ async def get_document(
 @router.delete("/{doc_id}")
 async def delete_document(
     doc_id: str,
+    rag=Depends(get_rag_instance),
     doc_svc: DocumentService = Depends(get_document_service),
     api_key: str = Depends(verify_api_key),
 ):
@@ -314,6 +353,18 @@ async def delete_document(
 
     注意: 当前仅删除文档记录和文件，知识图谱中的实体关系需要单独清理
     """
+    # Check if RAG instance is available
+    if rag is None:
+        raise HTTPException(
+            status_code=503,
+            detail=wrap_response(
+                code=ErrorCode.SERVICE_UNAVAILABLE,
+                message="RAG service is unavailable. Storage backend is not ready. "
+                        "Please ensure Docker services (Qdrant/Neo4j) are running if using database storage. "
+                        "Run 'docker compose up -d' to start the services."
+            )
+        )
+
     try:
         uuid_doc_id = UUID(doc_id)
     except ValueError:
