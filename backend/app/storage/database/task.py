@@ -318,3 +318,27 @@ class DatabaseTaskStorage(TaskStorage):
             )
 
         return result == "UPDATE 1"
+
+    async def get_by_documents_batch(self, doc_ids: List[UUID]) -> List[Task]:
+        """Retrieve all tasks for multiple documents in a single query.
+
+        Args:
+            doc_ids: List of document IDs to query tasks for.
+
+        Returns:
+            List of all tasks associated with the given document IDs.
+        """
+        if not doc_ids:
+            return []
+
+        async with DatabasePool.connection() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT * FROM tasks
+                WHERE document_id = ANY($1)
+                ORDER BY created_at DESC
+                """,
+                doc_ids,
+            )
+
+        return [self._row_to_task(row) for row in rows]
