@@ -2,8 +2,10 @@
 
 import uuid
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, List, Optional
 from uuid import UUID
+
+import asyncpg
 
 from ..base import WebhookStorage
 from ..models import Webhook, WebhookStatus
@@ -17,6 +19,47 @@ class DatabaseWebhookStorage(WebhookStorage):
     as the underlying storage backend. It provides CRUD operations for
     webhook records including delivery tracking and retry scheduling.
     """
+
+    def __init__(self) -> None:
+        """Initialize database webhook storage."""
+        self._conn: Optional[asyncpg.Connection] = None
+        self._tx: Optional[Any] = None
+
+    async def _get_connection(self) -> asyncpg.Connection:
+        """Get connection for query (transaction conn or new from pool)."""
+        if self._conn is not None:
+            return self._conn
+        return await DatabasePool.get_pool().acquire()
+
+    async def _release_connection(self, conn: asyncpg.Connection) -> None:
+        """Release connection back to pool if not in transaction mode."""
+        if self._conn is None:
+            await DatabasePool.get_pool().release(conn)
+
+    async def begin_transaction(self) -> None:
+        """Acquire connection and start transaction."""
+        pool = DatabasePool.get_pool()
+        self._conn = await pool.acquire()
+        self._tx = self._conn.transaction()
+        await self._tx.start()
+
+    async def commit_transaction(self) -> None:
+        """Commit transaction and release connection."""
+        if self._tx is not None:
+            await self._tx.commit()
+            self._tx = None
+        if self._conn is not None:
+            await DatabasePool.get_pool().release(self._conn)
+            self._conn = None
+
+    async def rollback_transaction(self) -> None:
+        """Rollback transaction and release connection."""
+        if self._tx is not None:
+            await self._tx.rollback()
+            self._tx = None
+        if self._conn is not None:
+            await DatabasePool.get_pool().release(self._conn)
+            self._conn = None
 
     def _row_to_webhook(self, row) -> Webhook:
         """Convert a database row to a Webhook model.
@@ -58,7 +101,8 @@ class DatabaseWebhookStorage(WebhookStorage):
         """
         webhook_id = uuid.uuid4()
 
-        async with DatabasePool.connection() as conn:
+        conn = await self._get_connection()
+        try:
             await conn.execute(
                 """
                 INSERT INTO webhooks (id, document_id, callback_url, event_type, status)
@@ -70,6 +114,8 @@ class DatabaseWebhookStorage(WebhookStorage):
                 event_type,
                 WebhookStatus.PENDING.value,
             )
+        finally:
+            await self._release_connection(conn)
 
         return Webhook(
             id=webhook_id,

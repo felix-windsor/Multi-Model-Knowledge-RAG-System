@@ -6,6 +6,8 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
+import asyncpg
+
 from ..base import TaskStorage
 from ..models import Task, TaskStatus
 from .connection import DatabasePool
@@ -19,6 +21,47 @@ class DatabaseTaskStorage(TaskStorage):
     task records including lifecycle management, progress tracking,
     and automatic retry logic.
     """
+
+    def __init__(self) -> None:
+        """Initialize database task storage."""
+        self._conn: Optional[asyncpg.Connection] = None
+        self._tx: Optional[Any] = None
+
+    async def _get_connection(self) -> asyncpg.Connection:
+        """Get connection for query (transaction conn or new from pool)."""
+        if self._conn is not None:
+            return self._conn
+        return await DatabasePool.get_pool().acquire()
+
+    async def _release_connection(self, conn: asyncpg.Connection) -> None:
+        """Release connection back to pool if not in transaction mode."""
+        if self._conn is None:
+            await DatabasePool.get_pool().release(conn)
+
+    async def begin_transaction(self) -> None:
+        """Acquire connection and start transaction."""
+        pool = DatabasePool.get_pool()
+        self._conn = await pool.acquire()
+        self._tx = self._conn.transaction()
+        await self._tx.start()
+
+    async def commit_transaction(self) -> None:
+        """Commit transaction and release connection."""
+        if self._tx is not None:
+            await self._tx.commit()
+            self._tx = None
+        if self._conn is not None:
+            await DatabasePool.get_pool().release(self._conn)
+            self._conn = None
+
+    async def rollback_transaction(self) -> None:
+        """Rollback transaction and release connection."""
+        if self._tx is not None:
+            await self._tx.rollback()
+            self._tx = None
+        if self._conn is not None:
+            await DatabasePool.get_pool().release(self._conn)
+            self._conn = None
 
     def _row_to_task(self, row) -> Task:
         """Convert a database row to a Task model.
@@ -65,7 +108,8 @@ class DatabaseTaskStorage(TaskStorage):
         task_id = uuid.uuid4()
         now = datetime.now()
 
-        async with DatabasePool.connection() as conn:
+        conn = await self._get_connection()
+        try:
             await conn.execute(
                 """
                 INSERT INTO tasks (id, document_id, task_type, status, progress, created_at)
@@ -78,6 +122,8 @@ class DatabaseTaskStorage(TaskStorage):
                 0,
                 now,
             )
+        finally:
+            await self._release_connection(conn)
 
         return Task(
             id=task_id,
