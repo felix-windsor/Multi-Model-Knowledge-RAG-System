@@ -264,6 +264,274 @@ Uses PostgreSQL for persistent storage. Recommended for production and multi-ins
 - `data/storage/` - RAG storage (vectors, graphs, KV) and local JSON storage
 - `data/output/` - Processed document output
 
+## RAG Storage Backend Configuration
+
+The system supports two storage backends for RAG data: local file-based storage (development) and database storage with Qdrant and Neo4j (production).
+
+### Local Storage (Development)
+
+**Description:** File-based storage using LightRAG's built-in storage. Stores vectors, graph data, and key-value pairs in local files under `data/storage/`.
+
+**Advantages:**
+- Zero configuration - no external services required
+- Fast setup for development and testing
+- Simple to backup and migrate (just copy files)
+- Ideal for single-instance deployments
+
+**Disadvantages:**
+- No concurrent access support
+- Limited scalability
+- No advanced query capabilities
+
+**Configuration:**
+```bash
+# In .env file
+STORAGE_BACKEND=local
+STORAGE_DIR=../data/storage
+```
+
+**Usage:**
+```bash
+# No additional services needed - just run the server
+cd backend
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+### Database Storage (Production)
+
+**Description:** Production-grade storage using Qdrant (vector database) and Neo4j (graph database). Provides concurrent access, scalability, and advanced query capabilities.
+
+**Advantages:**
+- Supports concurrent access from multiple instances
+- Horizontally scalable
+- Advanced query capabilities (vector similarity, graph traversal)
+- Web UIs for data exploration
+- Production-ready with health checks and monitoring
+
+**Disadvantages:**
+- Requires Docker services to be running
+- More complex setup and configuration
+- Higher resource requirements
+
+**Configuration:**
+```bash
+# In .env file
+STORAGE_BACKEND=qdrant_neo4j
+
+# Qdrant settings
+QDRANT_URL=http://localhost:6333
+QDRANT_COLLECTION_NAME=rag_collection
+
+# Neo4j settings
+NEO4J_URI=bolt://localhost:7687
+NEO4J_USER=neo4j
+NEO4J_PASSWORD=rag123456
+NEO4J_DATABASE=neo4j
+```
+
+**Usage:**
+```bash
+# Step 1: Start Docker services
+docker-compose up -d qdrant neo4j
+
+# Step 2: Wait for services to be ready (check health)
+docker-compose ps
+
+# Step 3: Run the server
+cd backend
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+### Switching Between Backends
+
+**Important Notes:**
+- Data is NOT automatically migrated between backends
+- Switching backends will start with an empty knowledge base
+- Backup your data before switching by exporting documents or copying `data/storage/`
+
+**Steps to Switch:**
+
+1. **Stop the server**
+   ```bash
+   # Press Ctrl+C in the terminal running uvicorn
+   ```
+
+2. **Update .env file**
+   ```bash
+   # For local storage
+   STORAGE_BACKEND=local
+
+   # OR for database storage
+   STORAGE_BACKEND=qdrant_neo4j
+   ```
+
+3. **If switching TO database storage:**
+   ```bash
+   # Start required services
+   docker-compose up -d qdrant neo4j
+
+   # Verify services are running
+   docker-compose ps
+   ```
+
+4. **If switching TO local storage:**
+   ```bash
+   # Optional: Stop database services to free resources
+   docker-compose stop qdrant neo4j
+   ```
+
+5. **Restart the server**
+   ```bash
+   cd backend
+   python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+   ```
+
+6. **Re-upload documents**
+   - Documents must be uploaded again to populate the new backend
+   - Use the web UI or API to upload documents
+
+### Viewing Stored Data
+
+#### Qdrant (Vector Database)
+
+**Web Dashboard:**
+- URL: http://localhost:6333/dashboard
+- Features: Browse collections, view vectors, inspect metadata, search similarity
+
+**API:**
+```bash
+# List collections
+curl http://localhost:6333/collections
+
+# Get collection info
+curl http://localhost:6333/collections/rag_collection
+
+# View points count
+curl http://localhost:6333/collections/rag_collection
+```
+
+**Python Script:**
+```bash
+# Use the provided script
+python scripts/view_qdrant.py
+```
+
+#### Neo4j (Graph Database)
+
+**Neo4j Browser:**
+- URL: http://localhost:7474
+- Username: `neo4j`
+- Password: `rag123456` (from .env)
+
+**Useful Cypher Queries:**
+```cypher
+// View all nodes and relationships
+MATCH (n) RETURN n LIMIT 25
+
+// Count entities and relationships
+MATCH (e:Entity) RETURN count(e) as entity_count
+MATCH ()-[r:RELATIONSHIP]->() RETURN count(r) as relation_count
+
+// Find entities by source document
+MATCH (e:Entity {source_id: "doc_xxx"}) RETURN e
+
+// View entity relationships
+MATCH (e:Entity)-[r:RELATIONSHIP]->(target)
+WHERE e.name = "Entity Name"
+RETURN e, r, target
+```
+
+**Python Script:**
+```bash
+# Use the provided script
+python scripts/view_neo4j.py
+```
+
+### Health Checks
+
+#### Check All Services
+
+```bash
+# Docker services
+docker-compose ps
+
+# Or check health status
+docker-compose ps --format json | python -m json.tool
+```
+
+#### Individual Service Health
+
+**Qdrant:**
+```bash
+# Health check
+curl http://localhost:6333/healthz
+
+# Readiness check
+curl http://localhost:6333/readyz
+```
+
+**Neo4j:**
+```bash
+# HTTP endpoint
+curl http://localhost:7474
+
+# Bolt connection (requires cypher-shell)
+cypher-shell -a bolt://localhost:7687 -u neo4j -p rag123456 "RETURN 1"
+```
+
+**Application Health:**
+```bash
+# API health endpoint
+curl http://localhost:8000/api/v1/health
+
+# Expected response:
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "status": "healthy",
+    "timestamp": "2026-01-28T12:00:00Z",
+    "storage_backend": "qdrant_neo4j",
+    "services": {
+      "qdrant": "connected",
+      "neo4j": "connected"
+    }
+  }
+}
+```
+
+#### Troubleshooting
+
+**Service not starting:**
+```bash
+# View logs
+docker-compose logs qdrant
+docker-compose logs neo4j
+
+# Restart service
+docker-compose restart qdrant neo4j
+
+# Full restart
+docker-compose down
+docker-compose up -d
+```
+
+**Connection issues:**
+```bash
+# Check if ports are available
+netstat -an | grep "6333\|7687\|7474"
+
+# Check Docker network
+docker network inspect rag-network
+```
+
+**Data corruption or reset:**
+```bash
+# WARNING: This will DELETE all data
+docker-compose down -v  # Remove volumes
+docker-compose up -d    # Recreate services
+```
+
 ## External Dependencies
 
 - **LibreOffice** - Required for Office document conversion (doc, docx, ppt, pptx, xls, xlsx)
