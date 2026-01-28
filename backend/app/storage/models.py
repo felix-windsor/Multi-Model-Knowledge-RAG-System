@@ -84,6 +84,7 @@ class Webhook(BaseModel):
     retry_count: int = 0
     max_retries: int = 3
     last_error: Optional[str] = None
+    payload_data: Optional[Dict[str, Any]] = None
     next_retry_at: Optional[datetime] = None
     delivered_at: Optional[datetime] = None
 

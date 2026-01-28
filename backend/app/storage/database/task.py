@@ -388,3 +388,24 @@ class DatabaseTaskStorage(TaskStorage):
             )
 
         return [self._row_to_task(row) for row in rows]
+
+    async def delete_by_document(self, document_id: UUID) -> int:
+        """Delete all tasks for a document.
+
+        Args:
+            document_id: ID of the document.
+
+        Returns:
+            Number of tasks deleted.
+        """
+        conn = await self._get_connection()
+        try:
+            result = await conn.execute(
+                "DELETE FROM tasks WHERE document_id = $1",
+                document_id,
+            )
+            # Parse "DELETE N" to get count
+            count = int(result.split()[-1]) if result else 0
+            return count
+        finally:
+            await self._release_connection(conn)

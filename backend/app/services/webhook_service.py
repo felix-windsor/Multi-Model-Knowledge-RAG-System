@@ -163,21 +163,33 @@ class WebhookService:
 
         Args:
             document_id: Document ID.
-            event_type: Event type (e.g., "document.processed").
+            event_type: Event type (e.g., "document.processed", "document.failed").
             data: Event data payload.
 
         Returns:
             Number of successfully delivered webhooks.
+
+        Note:
+            Webhooks registered for "document.processed" will also receive
+            "document.failed" events, since both represent completion of the
+            document processing flow.
         """
         webhooks = await self.storage.webhooks.get_by_document(document_id)
         success_count = 0
 
         for webhook in webhooks:
-            # 只发送匹配事件类型且待发送的 webhook
-            if webhook.event_type != event_type:
-                continue
+            # 只发送待发送的 webhook
             if webhook.status != WebhookStatus.PENDING:
                 continue
+
+            # Allow failure events to be delivered to webhooks registered for
+            # processed events (both are document completion events)
+            if webhook.event_type != event_type:
+                if not (
+                    webhook.event_type == "document.processed"
+                    and event_type == "document.failed"
+                ):
+                    continue
 
             payload = {
                 "event": event_type,
@@ -185,6 +197,9 @@ class WebhookService:
                 "data": data,
                 "timestamp": datetime.now().isoformat(),
             }
+
+            # Store payload data with webhook for retry purposes
+            await self.storage.webhooks.store_payload(webhook.id, data)
 
             if await self.deliver_webhook(webhook, payload):
                 success_count += 1
@@ -213,10 +228,14 @@ class WebhookService:
             if webhook.retry_count >= webhook.max_retries:
                 continue
 
-            # 构造 payload
+            # Retrieve stored payload data for retry
+            stored_payload = await self.storage.webhooks.get_payload(webhook.id)
+
+            # 构造 payload with original data
             payload = {
                 "event": webhook.event_type,
                 "document_id": str(webhook.document_id),
+                "data": stored_payload if stored_payload else {},
                 "timestamp": now.isoformat(),
                 "retry_attempt": webhook.retry_count + 1,
             }

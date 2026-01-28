@@ -294,10 +294,30 @@ class DocumentService:
     async def delete_document(self, doc_id: UUID) -> bool:
         """删除文档（级联删除任务和 webhook）
 
+        Deletes the document and all associated tasks and webhooks
+        in a transactional manner.
+
         Args:
             doc_id: Document ID.
 
         Returns:
             True if deletion was successful.
         """
-        return await self.storage.documents.delete(doc_id)
+        try:
+            await self.storage.begin_transaction()
+
+            # Delete associated tasks first
+            await self.storage.tasks.delete_by_document(doc_id)
+
+            # Delete associated webhooks
+            await self.storage.webhooks.delete_by_document(doc_id)
+
+            # Delete the document
+            result = await self.storage.documents.delete(doc_id)
+
+            await self.storage.commit()
+            return result
+
+        except Exception as e:
+            await self.storage.rollback()
+            raise ServiceError(f"Failed to delete document: {e}") from e

@@ -359,6 +359,30 @@ class LocalTaskStorage(TaskStorage):
         result.sort(key=lambda x: x.created_at, reverse=True)
         return result
 
+    async def delete_by_document(self, document_id: UUID) -> int:
+        """Delete all tasks for a document.
+
+        Args:
+            document_id: ID of the document.
+
+        Returns:
+            Number of tasks deleted.
+        """
+        tasks = self._load_tasks()
+        doc_id_str = str(document_id)
+
+        to_delete = [
+            task_id
+            for task_id, data in tasks.items()
+            if data["document_id"] == doc_id_str
+        ]
+
+        for task_id in to_delete:
+            del tasks[task_id]
+
+        self._save_tasks(tasks)
+        return len(to_delete)
+
     async def begin_transaction(self) -> None:
         """Create a snapshot of current state for potential rollback."""
         self._tx_snapshot = copy.deepcopy(self._load_tasks())

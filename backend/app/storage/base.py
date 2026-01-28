@@ -275,6 +275,18 @@ class TaskStorage(ABC):
         pass
 
     @abstractmethod
+    async def delete_by_document(self, document_id: UUID) -> int:
+        """Delete all tasks for a document.
+
+        Args:
+            document_id: ID of the document.
+
+        Returns:
+            Number of tasks deleted.
+        """
+        pass
+
+    @abstractmethod
     async def begin_transaction(self) -> None:
         """Begin a transaction (if supported by backend)."""
         pass
@@ -383,6 +395,47 @@ class WebhookStorage(ABC):
 
         Returns:
             True if successful, False if webhook not found.
+        """
+        pass
+
+    @abstractmethod
+    async def store_payload(
+        self,
+        webhook_id: UUID,
+        data: Dict[str, Any],
+    ) -> bool:
+        """Store payload data with the webhook for retry purposes.
+
+        Args:
+            webhook_id: Unique identifier of the webhook.
+            data: Payload data to store.
+
+        Returns:
+            True if successful, False if webhook not found.
+        """
+        pass
+
+    @abstractmethod
+    async def get_payload(self, webhook_id: UUID) -> Optional[Dict[str, Any]]:
+        """Retrieve stored payload data for a webhook.
+
+        Args:
+            webhook_id: Unique identifier of the webhook.
+
+        Returns:
+            Stored payload data if found, None otherwise.
+        """
+        pass
+
+    @abstractmethod
+    async def delete_by_document(self, document_id: UUID) -> int:
+        """Delete all webhooks for a document.
+
+        Args:
+            document_id: ID of the document.
+
+        Returns:
+            Number of webhooks deleted.
         """
         pass
 
