@@ -6,11 +6,15 @@ import tempfile
 from typing import Generator
 
 import pytest
+import pytest_asyncio
 
 from app.storage.local.document import LocalDocumentStorage
 from app.storage.local.task import LocalTaskStorage
 from app.storage.local.webhook import LocalWebhookStorage
 from app.storage.base import StorageManager
+
+# Configure pytest-asyncio
+pytest_plugins = ["pytest_asyncio"]
 
 
 @pytest.fixture
