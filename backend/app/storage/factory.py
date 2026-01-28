@@ -72,8 +72,16 @@ async def get_storage_manager() -> StorageManager:
     if _storage_manager is None:
         from app.config import settings
 
+        # Map RAG storage backend to API storage backend
+        # RAG backend: local, qdrant_neo4j
+        # API backend: local, database
+        # When using qdrant_neo4j for RAG, use local for API storage (no PostgreSQL)
+        api_backend = settings.storage_backend
+        if api_backend == "qdrant_neo4j":
+            api_backend = "local"
+
         _storage_manager = await create_storage_manager(
-            backend=settings.storage_backend,
+            backend=api_backend,
             storage_dir=settings.storage_dir,
             database_url=getattr(settings, 'database_url', None)
         )

@@ -164,7 +164,7 @@ async def check_storage_health(backend: str, config: Settings) -> Dict[str, bool
     if backend == "qdrant_neo4j":
         # Check Qdrant
         try:
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(trust_env=False) as client:
                 response = await client.get(
                     f"{config.qdrant_url}/healthz",
                     timeout=5.0
@@ -174,23 +174,20 @@ async def check_storage_health(backend: str, config: Settings) -> Dict[str, bool
             logger.error(f"Qdrant health check failed: {e}")
             health["qdrant"] = False
 
-        # Check Neo4j
-        driver = None
+        # Check Neo4j via HTTP API (avoids pyarrow dependency issues)
         try:
-            import neo4j
-            driver = neo4j.GraphDatabase.driver(
-                config.neo4j_uri,
-                auth=(config.neo4j_user, config.neo4j_password)
-            )
-            with driver.session(database=config.neo4j_database) as session:
-                result = session.run("RETURN 1")
-                health["neo4j"] = result.single()[0] == 1
+            # Neo4j Browser HTTP endpoint
+            neo4j_http_url = config.neo4j_uri.replace("bolt://", "http://").replace(":7687", ":7474")
+            async with httpx.AsyncClient(trust_env=False) as client:
+                response = await client.get(
+                    neo4j_http_url,
+                    timeout=5.0
+                )
+                # Neo4j returns JSON with bolt_routing info when healthy
+                health["neo4j"] = response.status_code == 200
         except Exception as e:
             logger.error(f"Neo4j health check failed: {e}")
             health["neo4j"] = False
-        finally:
-            if driver is not None:
-                driver.close()
 
         # Update global health status
         _storage_healthy = all(health.values())

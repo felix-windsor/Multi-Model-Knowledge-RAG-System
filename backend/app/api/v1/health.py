@@ -35,7 +35,7 @@ async def get_storage_stats(settings: Settings) -> Dict[str, Any]:
 
         # Get Qdrant statistics
         try:
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(trust_env=False) as client:
                 response = await client.get(
                     f"{settings.qdrant_url}/collections",
                     timeout=5.0
