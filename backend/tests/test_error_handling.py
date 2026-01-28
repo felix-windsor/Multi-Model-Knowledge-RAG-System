@@ -7,6 +7,9 @@ from app.dependencies import get_rag_instance, get_settings
 from app.middleware.auth import verify_api_key
 
 
+pytestmark = pytest.mark.unit
+
+
 def test_upload_document_returns_503_when_rag_unavailable():
     """Test that document upload returns 503 when RAG instance is None"""
 

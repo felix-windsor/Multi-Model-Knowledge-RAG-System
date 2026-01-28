@@ -6,6 +6,9 @@ from app.dependencies import create_rag_instance
 from app.config import Settings
 
 
+pytestmark = pytest.mark.unit
+
+
 @pytest.mark.asyncio
 async def test_create_rag_instance_local():
     """Test RAG instance creation with local storage"""

@@ -4,6 +4,9 @@ from httpx import AsyncClient, ASGITransport
 from app.main import app
 
 
+pytestmark = pytest.mark.unit
+
+
 @pytest.mark.asyncio
 async def test_health_check_basic():
     """Test basic health check endpoint"""

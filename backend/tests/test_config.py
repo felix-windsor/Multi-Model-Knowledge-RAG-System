@@ -5,6 +5,9 @@ from unittest.mock import patch
 from app.config import Settings, validate_storage_config
 
 
+pytestmark = pytest.mark.unit
+
+
 def test_local_storage_config_valid():
     """Test local storage config is valid with minimal settings"""
     with patch.dict(os.environ, {"STORAGE_BACKEND": "local"}, clear=True):

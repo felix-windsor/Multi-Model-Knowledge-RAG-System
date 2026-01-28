@@ -5,6 +5,9 @@ from app.dependencies import check_storage_health
 from app.config import Settings
 
 
+pytestmark = pytest.mark.unit
+
+
 @pytest.mark.asyncio
 async def test_local_storage_health_empty():
     """Test local storage returns empty health dict"""

@@ -29,18 +29,29 @@ Access: http://localhost:8000 (frontend) | http://localhost:8000/docs (API docs)
 
 ## Testing
 
+The project has two types of tests:
+
+### Unit Tests (Default)
+
+Unit tests have no external dependencies and run quickly. They use mocks to isolate functionality.
+
 ```bash
-# Run all tests
+# Run all unit tests (default)
 cd backend
-python -m pytest tests/
+python -m pytest
+
+# Run specific test file
+python -m pytest tests/test_config.py
 
 # Run specific test categories
 python -m pytest tests/storage/      # Storage layer tests
 python -m pytest tests/services/     # Service layer tests
-python -m pytest tests/integration/  # API integration tests
 
 # Run with verbose output
-python -m pytest tests/ -v
+python -m pytest -v
+
+# Explicitly run only unit tests
+python -m pytest -m unit
 ```
 
 **Test Structure:**
@@ -55,8 +66,67 @@ backend/tests/
 │   └── test_task_service.py
 ├── integration/       # API integration tests
 │   └── test_document_flow.py
+│   └── test_database_backend.py
 └── conftest.py        # Shared fixtures
 ```
+
+**Available unit test files:**
+- `tests/test_config.py` - Configuration validation
+- `tests/test_health_check.py` - Storage health check functions
+- `tests/test_health_api.py` - Health check API endpoints
+- `tests/test_rag_instance.py` - RAG instance creation
+- `tests/test_error_handling.py` - Error handling for unavailable storage
+
+### Integration Tests (Requires Docker)
+
+Integration tests require Docker services (Qdrant and Neo4j) to be running. They test real interactions with external services.
+
+```bash
+# Step 1: Start Docker services
+docker-compose up -d qdrant neo4j
+
+# Step 2: Wait for services to be ready (check health)
+docker-compose ps
+
+# Step 3: Run integration tests
+cd backend
+python -m pytest -m integration
+
+# Run integration tests with verbose output
+python -m pytest -m integration -v
+
+# Run specific integration test
+python -m pytest tests/integration/test_database_backend.py
+```
+
+**Integration test behavior:**
+- Tests are automatically skipped if `STORAGE_BACKEND != qdrant_neo4j`
+- Tests wait for services to be ready before running
+- Tests skip if services are not available (no failures)
+- Tests verify real database connections and operations
+
+**Available integration test files:**
+- `tests/integration/test_database_backend.py` - End-to-end tests with Qdrant and Neo4j
+
+### Running All Tests
+
+```bash
+# Run both unit and integration tests
+cd backend
+python -m pytest -m ""
+
+# Or explicitly
+python -m pytest --co -q  # Show what would run
+python -m pytest          # Run (will skip integration by default)
+```
+
+### Test Configuration
+
+Tests are configured in `pytest.ini`:
+- Unit tests run by default
+- Integration tests require explicit `-m integration` flag
+- Asyncio mode is set to auto for async tests
+- Verbose output is enabled by default
 
 ## Architecture
 
@@ -543,7 +613,7 @@ docker-compose up -d    # Recreate services
 
 **CRITICAL RULE**: Do NOT leave TODO comments in code. Either implement the feature completely or don't write it at all.
 
-**❌ Bad:**
+**Bad:**
 ```python
 # TODO: Extract source information from answer
 sources = []
@@ -552,7 +622,7 @@ sources = []
 usage = {"prompt_tokens": 0, "completion_tokens": 0}
 ```
 
-**✅ Good - Option 1 (Complete Implementation):**
+**Good - Option 1 (Complete Implementation):**
 ```python
 # Extract sources from answer metadata
 sources = extract_sources_from_answer(answer)
@@ -564,7 +634,7 @@ usage = {
 }
 ```
 
-**✅ Good - Option 2 (Don't Implement Yet):**
+**Good - Option 2 (Don't Implement Yet):**
 ```python
 # Simply omit the unimplemented feature
 # Return minimal response until ready to implement
