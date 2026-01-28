@@ -3,6 +3,9 @@ import os
 import sys
 from pathlib import Path
 from functools import lru_cache
+import httpx
+import logging
+from typing import Dict
 
 from fastapi import Depends
 
@@ -15,11 +18,58 @@ from app.services.llm_factory import ModelFactory, LLMFactory
 from app.services.document_service import DocumentService
 from app.services.task_service import TaskService
 from app.services.webhook_service import WebhookService
-from app.config import settings
+from app.config import settings, Settings
 from app.storage import StorageManager, get_storage_manager
+
+logger = logging.getLogger(__name__)
 
 
 _rag_instance = None
+
+
+async def check_storage_health(backend: str, config: Settings) -> Dict[str, bool]:
+    """
+    Check storage backend health status
+
+    Args:
+        backend: Storage backend type
+        config: Settings instance
+
+    Returns:
+        Dictionary with health status for each backend
+        {"qdrant": True/False, "neo4j": True/False}
+    """
+    health = {}
+
+    if backend == "qdrant_neo4j":
+        # Check Qdrant
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{config.qdrant_url}/healthz",
+                    timeout=5.0
+                )
+                health["qdrant"] = response.status_code == 200
+        except Exception as e:
+            logger.error(f"Qdrant health check failed: {e}")
+            health["qdrant"] = False
+
+        # Check Neo4j
+        try:
+            import neo4j
+            driver = neo4j.GraphDatabase.driver(
+                config.neo4j_uri,
+                auth=(config.neo4j_user, config.neo4j_password)
+            )
+            with driver.session() as session:
+                result = session.run("RETURN 1")
+                health["neo4j"] = result.single()[0] == 1
+            driver.close()
+        except Exception as e:
+            logger.error(f"Neo4j health check failed: {e}")
+            health["neo4j"] = False
+
+    return health
 
 
 async def get_rag_instance() -> RAGAnything:
