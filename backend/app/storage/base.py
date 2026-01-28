@@ -8,7 +8,7 @@ switching between storage backends.
 
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from .models import Document, Task, Webhook
@@ -229,6 +229,21 @@ class TaskStorage(ABC):
 
         Returns:
             True if successful, False if task not found or cannot be cancelled.
+        """
+        pass
+
+    @abstractmethod
+    async def get_by_documents_batch(self, doc_ids: List[UUID]) -> List[Task]:
+        """Retrieve all tasks for multiple documents in a single query.
+
+        This method enables efficient batch loading of tasks for multiple
+        documents, avoiding N+1 query issues in list endpoints.
+
+        Args:
+            doc_ids: List of document IDs to query tasks for.
+
+        Returns:
+            List of all tasks associated with the given document IDs.
         """
         pass
 
