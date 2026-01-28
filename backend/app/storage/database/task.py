@@ -6,6 +6,8 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
+import asyncpg
+
 from ..base import TaskStorage
 from ..models import Task, TaskStatus
 from .connection import DatabasePool
@@ -19,6 +21,47 @@ class DatabaseTaskStorage(TaskStorage):
     task records including lifecycle management, progress tracking,
     and automatic retry logic.
     """
+
+    def __init__(self) -> None:
+        """Initialize database task storage."""
+        self._conn: Optional[asyncpg.Connection] = None
+        self._tx: Optional[Any] = None
+
+    async def _get_connection(self) -> asyncpg.Connection:
+        """Get connection for query (transaction conn or new from pool)."""
+        if self._conn is not None:
+            return self._conn
+        return await DatabasePool.get_pool().acquire()
+
+    async def _release_connection(self, conn: asyncpg.Connection) -> None:
+        """Release connection back to pool if not in transaction mode."""
+        if self._conn is None:
+            await DatabasePool.get_pool().release(conn)
+
+    async def begin_transaction(self) -> None:
+        """Acquire connection and start transaction."""
+        pool = DatabasePool.get_pool()
+        self._conn = await pool.acquire()
+        self._tx = self._conn.transaction()
+        await self._tx.start()
+
+    async def commit_transaction(self) -> None:
+        """Commit transaction and release connection."""
+        if self._tx is not None:
+            await self._tx.commit()
+            self._tx = None
+        if self._conn is not None:
+            await DatabasePool.get_pool().release(self._conn)
+            self._conn = None
+
+    async def rollback_transaction(self) -> None:
+        """Rollback transaction and release connection."""
+        if self._tx is not None:
+            await self._tx.rollback()
+            self._tx = None
+        if self._conn is not None:
+            await DatabasePool.get_pool().release(self._conn)
+            self._conn = None
 
     def _row_to_task(self, row) -> Task:
         """Convert a database row to a Task model.
@@ -42,6 +85,7 @@ class DatabaseTaskStorage(TaskStorage):
             task_type=row["task_type"],
             status=TaskStatus(row["status"]),
             progress=row["progress"],
+            step=row.get("step"),
             retry_count=row["retry_count"],
             max_retries=row["max_retries"],
             last_error=row["last_error"],
@@ -64,7 +108,8 @@ class DatabaseTaskStorage(TaskStorage):
         task_id = uuid.uuid4()
         now = datetime.now()
 
-        async with DatabasePool.connection() as conn:
+        conn = await self._get_connection()
+        try:
             await conn.execute(
                 """
                 INSERT INTO tasks (id, document_id, task_type, status, progress, created_at)
@@ -77,6 +122,8 @@ class DatabaseTaskStorage(TaskStorage):
                 0,
                 now,
             )
+        finally:
+            await self._release_connection(conn)
 
         return Task(
             id=task_id,
@@ -174,13 +221,16 @@ class DatabaseTaskStorage(TaskStorage):
 
         return result == "UPDATE 1"
 
-    async def update_progress(self, task_id: UUID, progress: int) -> bool:
+    async def update_progress(
+        self, task_id: UUID, progress: int, step: Optional[str] = None
+    ) -> bool:
         """Update the progress of a task.
 
         Args:
             task_id: Unique identifier of the task.
             progress: Progress percentage (0-100). Values outside this range
                 will be clamped.
+            step: Optional description of the current processing step.
 
         Returns:
             True if successful, False if task not found.
@@ -188,11 +238,19 @@ class DatabaseTaskStorage(TaskStorage):
         progress = max(0, min(100, progress))
 
         async with DatabasePool.connection() as conn:
-            result = await conn.execute(
-                "UPDATE tasks SET progress = $1 WHERE id = $2",
-                progress,
-                task_id,
-            )
+            if step is not None:
+                result = await conn.execute(
+                    "UPDATE tasks SET progress = $1, step = $2 WHERE id = $3",
+                    progress,
+                    step,
+                    task_id,
+                )
+            else:
+                result = await conn.execute(
+                    "UPDATE tasks SET progress = $1 WHERE id = $2",
+                    progress,
+                    task_id,
+                )
 
         return result == "UPDATE 1"
 
@@ -306,3 +364,48 @@ class DatabaseTaskStorage(TaskStorage):
             )
 
         return result == "UPDATE 1"
+
+    async def get_by_documents_batch(self, doc_ids: List[UUID]) -> List[Task]:
+        """Retrieve all tasks for multiple documents in a single query.
+
+        Args:
+            doc_ids: List of document IDs to query tasks for.
+
+        Returns:
+            List of all tasks associated with the given document IDs.
+        """
+        if not doc_ids:
+            return []
+
+        async with DatabasePool.connection() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT * FROM tasks
+                WHERE document_id = ANY($1)
+                ORDER BY created_at DESC
+                """,
+                doc_ids,
+            )
+
+        return [self._row_to_task(row) for row in rows]
+
+    async def delete_by_document(self, document_id: UUID) -> int:
+        """Delete all tasks for a document.
+
+        Args:
+            document_id: ID of the document.
+
+        Returns:
+            Number of tasks deleted.
+        """
+        conn = await self._get_connection()
+        try:
+            result = await conn.execute(
+                "DELETE FROM tasks WHERE document_id = $1",
+                document_id,
+            )
+            # Parse "DELETE N" to get count
+            count = int(result.split()[-1]) if result else 0
+            return count
+        finally:
+            await self._release_connection(conn)

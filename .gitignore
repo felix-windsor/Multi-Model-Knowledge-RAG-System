@@ -6,6 +6,7 @@ __pycache__/
 *.tgz
 *.tar.gz
 *.ini
+!pytest.ini
 
 # Virtual Environment
 .venv/
@@ -81,11 +82,7 @@ lightrag-dev/
 gui/
 tiktoken_cache/
 
-# unit-test files
-test_*
-
-# Backend test and rethink directories
-backend/tests/
+# Backend rethink and proposal directories
 backend/rethink/
 backend/proposal/
 

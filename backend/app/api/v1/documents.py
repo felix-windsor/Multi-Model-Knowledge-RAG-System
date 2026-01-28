@@ -1,33 +1,61 @@
-"""V1 文档管理 API"""
+"""V1 文档管理 API（重构版 - 使用 Service DI）"""
+
 import os
-from pathlib import Path
 from typing import Optional
-from fastapi import APIRouter, UploadFile, File, Form, BackgroundTasks, Depends, HTTPException
-from app.dependencies import get_rag_instance, get_settings
-from app.services.document_service import DocumentService
-from app.services.task_service import TaskService, TaskStatus
-from app.services.webhook_service import WebhookService
-from app.middleware.auth import verify_api_key
-from app.middleware.response import wrap_response, ErrorCode
-from app.models.response import V1UploadData, V1DocumentData, V1DocumentListData
+from uuid import UUID
+
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    UploadFile,
+)
+
 from app.config import Settings
+from app.dependencies import (
+    get_document_service,
+    get_rag_instance,
+    get_settings,
+    get_task_service,
+    get_webhook_service,
+)
+from app.middleware.auth import verify_api_key
+from app.middleware.response import ErrorCode, wrap_response
+from app.models.response import V1DocumentData, V1DocumentListData, V1UploadData
+from app.services.document_service import DocumentService
+from app.services.task_service import TaskService
+from app.services.webhook_service import WebhookService
+from app.storage.models import DocumentStatus, TaskStatus
 
 router = APIRouter()
 
 # 允许的文件扩展名
 ALLOWED_EXTENSIONS = [
-    ".pdf", ".jpg", ".jpeg", ".png", ".bmp",
-    ".doc", ".docx", ".ppt", ".pptx",
-    ".txt", ".md"
+    ".pdf",
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".bmp",
+    ".doc",
+    ".docx",
+    ".ppt",
+    ".pptx",
+    ".txt",
+    ".md",
 ]
 
 
 async def process_document_with_callback(
     rag,
-    doc_id: str,
-    task_id: str,
+    doc_id: UUID,
+    task_id: UUID,
     file_path: str,
-    callback_url: Optional[str] = None
+    callback_url: Optional[str],
+    task_svc: TaskService,
+    webhook_svc: WebhookService,
 ):
     """
     处理文档并发送回调（后台任务）
@@ -38,73 +66,77 @@ async def process_document_with_callback(
         task_id: 任务 ID
         file_path: 文件路径
         callback_url: 回调 URL
+        task_svc: TaskService 实例
+        webhook_svc: WebhookService 实例
     """
     try:
-        # 更新任务状态
-        TaskService.update_task(
-            task_id,
-            status=TaskStatus.PROCESSING.value,
-            progress=5,
-            step="准备 AI 模型"
-        )
+        # 启动任务
+        await task_svc.start_task(task_id)
 
-        # 调用原有的处理逻辑
-        await DocumentService.process_document(rag, doc_id, file_path)
+        # 更新任务状态
+        await task_svc.update_progress(task_id, 5, "准备 AI 模型")
+
+        # 解析文档
+        await task_svc.update_progress(task_id, 15, "正在解析文档")
+
+        # 处理文档（主要耗时操作）
+        await rag.process_document_complete(file_path, formula=False)
+
+        # 处理多模态内容
+        await task_svc.update_progress(task_id, 70, "正在处理多模态内容")
+
+        # 构建知识图谱
+        await task_svc.update_progress(task_id, 90, "正在构建知识图谱")
 
         # 获取处理结果统计
         entities_count = 0
         relations_count = 0
 
         try:
-            if hasattr(rag, 'lightrag') and rag.lightrag:
+            if hasattr(rag, "lightrag") and rag.lightrag:
                 graph_storage = rag.lightrag.chunk_entity_relation_graph
-                if hasattr(graph_storage, '_graph'):
+                if hasattr(graph_storage, "_graph"):
                     entities_count = graph_storage._graph.number_of_nodes()
                     relations_count = graph_storage._graph.number_of_edges()
         except Exception:
             pass
 
-        # 更新任务状态为完成
-        TaskService.update_task(
+        # 完成任务
+        await task_svc.complete_task(
             task_id,
-            status=TaskStatus.COMPLETED.value,
-            progress=100,
-            step="处理完成",
             result={
                 "entities_count": entities_count,
-                "relations_count": relations_count
-            }
+                "relations_count": relations_count,
+            },
         )
 
         # 发送 Webhook 回调
         if callback_url:
-            await WebhookService.notify_document_completed(
-                callback_url=callback_url,
-                doc_id=doc_id,
-                task_id=task_id,
-                entities_count=entities_count,
-                relations_count=relations_count
+            await webhook_svc.deliver_document_event(
+                doc_id,
+                "document.processed",
+                {
+                    "status": "completed",
+                    "entities_count": entities_count,
+                    "relations_count": relations_count,
+                },
             )
 
     except Exception as e:
         error_message = str(e)
 
-        # 更新任务状态为失败
-        TaskService.update_task(
-            task_id,
-            status=TaskStatus.FAILED.value,
-            progress=0,
-            step="处理失败",
-            error_message=error_message
-        )
+        # 标记任务失败
+        await task_svc.fail_task(task_id, error_message)
 
         # 发送失败回调
         if callback_url:
-            await WebhookService.notify_document_failed(
-                callback_url=callback_url,
-                doc_id=doc_id,
-                task_id=task_id,
-                error_message=error_message
+            await webhook_svc.deliver_document_event(
+                doc_id,
+                "document.failed",
+                {
+                    "status": "failed",
+                    "error_message": error_message,
+                },
             )
 
 
@@ -115,7 +147,10 @@ async def upload_document(
     background_tasks: BackgroundTasks = None,
     rag=Depends(get_rag_instance),
     settings: Settings = Depends(get_settings),
-    api_key: str = Depends(verify_api_key)
+    doc_svc: DocumentService = Depends(get_document_service),
+    task_svc: TaskService = Depends(get_task_service),
+    webhook_svc: WebhookService = Depends(get_webhook_service),
+    api_key: str = Depends(verify_api_key),
 ):
     """
     上传文档（异步处理）
@@ -123,60 +158,54 @@ async def upload_document(
     - **file**: 要上传的文件
     - **callback_url**: 可选的 Webhook 回调 URL
     """
-    # 设置 RAGAnything 实例
-    DocumentService.set_rag_instance(rag)
-
     # 验证文件类型
-    file_ext = "." + file.filename.split(".")[-1].lower() if "." in file.filename else ""
+    file_ext = (
+        "." + file.filename.split(".")[-1].lower() if "." in file.filename else ""
+    )
     if file_ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=400,
             detail=wrap_response(
                 code=ErrorCode.INVALID_FILE_TYPE,
-                message=f"不支持的文件格式。支持的格式: {', '.join(ALLOWED_EXTENSIONS)}"
-            )
+                message=f"不支持的文件格式。支持的格式: {', '.join(ALLOWED_EXTENSIONS)}",
+            ),
         )
 
     try:
         # 保存文件
-        doc_id, file_path, file_size = await DocumentService.save_uploaded_file(
-            file,
-            settings.upload_dir
+        file_path, file_size = await DocumentService.save_uploaded_file(
+            file, settings.upload_dir
         )
 
-        # 创建任务
-        task = TaskService.create_task(
-            doc_id=doc_id,
-            task_type="document_processing",
-            callback_url=callback_url
-        )
-
-        # 创建文档记录
-        DocumentService.create_document_record(
-            doc_id,
-            file.filename,
-            file_path,
-            file_size
+        # 事务创建文档、任务、Webhook
+        document, task, webhook = await doc_svc.create_document_with_task(
+            filename=file.filename,
+            file_path=file_path,
+            file_size=file_size,
+            mime_type=file.content_type or "application/octet-stream",
+            callback_url=callback_url,
         )
 
         # 后台处理文档
         background_tasks.add_task(
             process_document_with_callback,
             rag,
-            doc_id,
-            task["task_id"],
+            document.id,
+            task.id,
             file_path,
-            callback_url
+            callback_url,
+            task_svc,
+            webhook_svc,
         )
 
         return wrap_response(
             data=V1UploadData(
-                doc_id=doc_id,
-                task_id=task["task_id"],
+                doc_id=str(document.id),
+                task_id=str(task.id),
                 status="processing",
-                filename=file.filename
+                filename=file.filename,
             ).model_dump(),
-            message="Document upload started"
+            message="Document upload started",
         )
 
     except Exception as e:
@@ -184,84 +213,76 @@ async def upload_document(
             status_code=500,
             detail=wrap_response(
                 code=ErrorCode.INTERNAL_ERROR,
-                message=f"上传失败: {str(e)}"
-            )
+                message=f"上传失败: {str(e)}",
+            ),
         )
 
 
 @router.get("")
 async def get_documents(
-    rag=Depends(get_rag_instance),
-    api_key: str = Depends(verify_api_key)
+    doc_svc: DocumentService = Depends(get_document_service),
+    api_key: str = Depends(verify_api_key),
 ):
     """
     获取文档列表
     """
-    DocumentService.set_rag_instance(rag)
-    documents = await DocumentService.get_all_documents()
+    documents = await doc_svc.list_documents_with_status()
 
     doc_list = []
     for doc in documents:
-        # 获取关联任务信息
-        task = TaskService.get_task_by_doc_id(doc["doc_id"])
-        entities_count = 0
-        relations_count = 0
-
-        if task and task.get("result"):
-            entities_count = task["result"].get("entities_count", 0)
-            relations_count = task["result"].get("relations_count", 0)
-
-        doc_list.append(V1DocumentData(
-            doc_id=doc["doc_id"],
-            filename=doc["filename"],
-            status=doc["status"],
-            progress=doc.get("progress", 0),
-            entities_count=entities_count,
-            relations_count=relations_count,
-            created_at=doc.get("created_at").isoformat() if doc.get("created_at") else None,
-            completed_at=task.get("completed_at") if task else None,
-            error_message=doc.get("error_message")
-        ).model_dump())
+        doc_list.append(
+            V1DocumentData(
+                doc_id=doc["doc_id"],
+                filename=doc["filename"],
+                status=doc["status"],
+                progress=doc.get("progress", 0),
+                entities_count=0,
+                relations_count=0,
+                created_at=(
+                    doc["created_at"].isoformat() if doc.get("created_at") else None
+                ),
+                completed_at=None,
+                error_message=None,
+            ).model_dump()
+        )
 
     return wrap_response(
-        data=V1DocumentListData(
-            total=len(doc_list),
-            documents=doc_list
-        ).model_dump()
+        data=V1DocumentListData(total=len(doc_list), documents=doc_list).model_dump()
     )
 
 
 @router.get("/{doc_id}")
 async def get_document(
     doc_id: str,
-    rag=Depends(get_rag_instance),
-    api_key: str = Depends(verify_api_key)
+    doc_svc: DocumentService = Depends(get_document_service),
+    api_key: str = Depends(verify_api_key),
 ):
     """
     获取文档详情和处理状态
 
     - **doc_id**: 文档 ID
     """
-    DocumentService.set_rag_instance(rag)
-    status = await DocumentService.get_document_status(doc_id)
+    try:
+        uuid_doc_id = UUID(doc_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail=wrap_response(
+                code=ErrorCode.INVALID_PARAMETER,
+                message=f"无效的文档 ID 格式: {doc_id}",
+            ),
+        )
+
+    status = await doc_svc.get_document_with_status(uuid_doc_id)
 
     if not status:
         raise HTTPException(
             status_code=404,
             detail=wrap_response(
                 code=ErrorCode.DOCUMENT_NOT_FOUND,
-                message=f"文档不存在: {doc_id}"
-            )
+                message=f"文档不存在: {doc_id}",
+            ),
         )
-
-    # 获取关联任务信息
-    task = TaskService.get_task_by_doc_id(doc_id)
-    entities_count = 0
-    relations_count = 0
-
-    if task and task.get("result"):
-        entities_count = task["result"].get("entities_count", 0)
-        relations_count = task["result"].get("relations_count", 0)
 
     return wrap_response(
         data=V1DocumentData(
@@ -269,11 +290,13 @@ async def get_document(
             filename=status["filename"],
             status=status["status"],
             progress=status.get("progress", 0),
-            entities_count=entities_count,
-            relations_count=relations_count,
-            created_at=status.get("created_at").isoformat() if status.get("created_at") else None,
-            completed_at=task.get("completed_at") if task else None,
-            error_message=status.get("error_message")
+            entities_count=status.get("chunks_count", 0),
+            relations_count=0,
+            created_at=(
+                status["created_at"].isoformat() if status.get("created_at") else None
+            ),
+            completed_at=None,
+            error_message=status.get("error_message"),
         ).model_dump()
     )
 
@@ -281,40 +304,50 @@ async def get_document(
 @router.delete("/{doc_id}")
 async def delete_document(
     doc_id: str,
-    rag=Depends(get_rag_instance),
-    api_key: str = Depends(verify_api_key)
+    doc_svc: DocumentService = Depends(get_document_service),
+    api_key: str = Depends(verify_api_key),
 ):
     """
     删除文档
 
     - **doc_id**: 文档 ID
 
-    注意: 当前仅删除文档记录，不会删除知识图谱中的实体关系
+    注意: 当前仅删除文档记录和文件，知识图谱中的实体关系需要单独清理
     """
-    DocumentService.set_rag_instance(rag)
-    status = await DocumentService.get_document_status(doc_id)
+    try:
+        uuid_doc_id = UUID(doc_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail=wrap_response(
+                code=ErrorCode.INVALID_PARAMETER,
+                message=f"无效的文档 ID 格式: {doc_id}",
+            ),
+        )
 
-    if not status:
+    # 获取文档信息
+    document = await doc_svc.get_document(uuid_doc_id)
+
+    if not document:
         raise HTTPException(
             status_code=404,
             detail=wrap_response(
                 code=ErrorCode.DOCUMENT_NOT_FOUND,
-                message=f"文档不存在: {doc_id}"
-            )
+                message=f"文档不存在: {doc_id}",
+            ),
         )
 
     # 删除文件
-    file_path = status.get("file_path")
-    if file_path and os.path.exists(file_path):
+    if document.file_path and os.path.exists(document.file_path):
         try:
-            os.remove(file_path)
+            os.remove(document.file_path)
         except Exception:
             pass
 
-    # TODO: 从 LightRAG 中删除文档相关的实体和关系
-    # 目前 LightRAG 不支持按文档删除
+    # 删除文档记录（级联删除任务和 webhook）
+    await doc_svc.delete_document(uuid_doc_id)
 
     return wrap_response(
         data={"doc_id": doc_id, "deleted": True},
-        message="Document deleted successfully"
+        message="Document deleted successfully",
     )

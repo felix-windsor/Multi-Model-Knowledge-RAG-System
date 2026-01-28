@@ -1,10 +1,11 @@
 """Local file-based webhook storage implementation."""
 
+import copy
 import json
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from ..base import WebhookStorage
@@ -27,6 +28,7 @@ class LocalWebhookStorage(WebhookStorage):
         """
         self.storage_dir = Path(storage_dir)
         self.webhooks_file = self.storage_dir / "webhooks.json"
+        self._tx_snapshot: Optional[Dict[str, dict]] = None
         self._ensure_storage_exists()
 
     def _ensure_storage_exists(self) -> None:
@@ -74,6 +76,7 @@ class LocalWebhookStorage(WebhookStorage):
             retry_count=data.get("retry_count", 0),
             max_retries=data.get("max_retries", 3),
             last_error=data.get("last_error"),
+            payload_data=data.get("payload_data"),
             next_retry_at=(
                 datetime.fromisoformat(data["next_retry_at"])
                 if data.get("next_retry_at")
@@ -115,6 +118,7 @@ class LocalWebhookStorage(WebhookStorage):
             "retry_count": 0,
             "max_retries": 3,
             "last_error": None,
+            "payload_data": None,
             "next_retry_at": None,
             "delivered_at": None,
         }
@@ -255,3 +259,86 @@ class LocalWebhookStorage(WebhookStorage):
 
         self._save_webhooks(webhooks)
         return True
+
+    async def store_payload(
+        self,
+        webhook_id: UUID,
+        data: Dict[str, Any],
+    ) -> bool:
+        """Store payload data with the webhook for retry purposes.
+
+        Args:
+            webhook_id: Unique identifier of the webhook.
+            data: Payload data to store.
+
+        Returns:
+            True if successful, False if webhook not found.
+        """
+        webhooks = self._load_webhooks()
+        webhook_key = str(webhook_id)
+
+        if webhook_key not in webhooks:
+            return False
+
+        webhooks[webhook_key]["payload_data"] = data
+        self._save_webhooks(webhooks)
+        return True
+
+    async def get_payload(self, webhook_id: UUID) -> Optional[Dict[str, Any]]:
+        """Retrieve stored payload data for a webhook.
+
+        Args:
+            webhook_id: Unique identifier of the webhook.
+
+        Returns:
+            Stored payload data if found, None otherwise.
+        """
+        webhooks = self._load_webhooks()
+        webhook_data = webhooks.get(str(webhook_id))
+
+        if not webhook_data:
+            return None
+
+        return webhook_data.get("payload_data")
+
+    async def delete_by_document(self, document_id: UUID) -> int:
+        """Delete all webhooks for a document.
+
+        Args:
+            document_id: ID of the document.
+
+        Returns:
+            Number of webhooks deleted.
+        """
+        webhooks = self._load_webhooks()
+        doc_id_str = str(document_id)
+
+        to_delete = [
+            webhook_id
+            for webhook_id, data in webhooks.items()
+            if data["document_id"] == doc_id_str
+        ]
+
+        for webhook_id in to_delete:
+            del webhooks[webhook_id]
+
+        self._save_webhooks(webhooks)
+        return len(to_delete)
+
+    async def begin_transaction(self) -> None:
+        """Create a snapshot of current state for potential rollback."""
+        self._tx_snapshot = copy.deepcopy(self._load_webhooks())
+
+    async def commit_transaction(self) -> None:
+        """Commit changes by clearing the snapshot.
+
+        Changes are already persisted to disk during individual operations,
+        so commit just clears the rollback snapshot.
+        """
+        self._tx_snapshot = None
+
+    async def rollback_transaction(self) -> None:
+        """Rollback to snapshot state by restoring from the saved snapshot."""
+        if self._tx_snapshot is not None:
+            self._save_webhooks(self._tx_snapshot)
+            self._tx_snapshot = None

@@ -1,294 +1,323 @@
-"""文档处理服务"""
+"""文档处理服务（重构版 - 使用 StorageManager）"""
+
+import asyncio
 import os
 import uuid
 from pathlib import Path
-from datetime import datetime
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List, Optional
+from uuid import UUID
+
 from fastapi import UploadFile
 
-
-# 简单的内存存储（用于临时存储上传中的文档）
-_document_store: Dict[str, Dict[str, Any]] = {}
-
-# RAGAnything 实例引用（用于访问持久化存储）
-_rag_instance = None
+from app.exceptions import ServiceError
+from app.storage.base import StorageManager
+from app.storage.models import Document, DocumentStatus, Task
 
 
 class DocumentService:
-    """文档处理服务"""
+    """文档处理服务
 
-    @staticmethod
-    def set_rag_instance(rag):
-        """设置 RAGAnything 实例"""
-        global _rag_instance
-        _rag_instance = rag
+    This service provides document management operations using the storage
+    abstraction layer. It supports transactional creation of documents with
+    associated tasks and webhooks.
+    """
 
-    @staticmethod
-    def generate_doc_id() -> str:
-        """生成文档 ID"""
-        return f"doc-{uuid.uuid4().hex[:12]}"
+    def __init__(self, storage: StorageManager) -> None:
+        """Initialize document service with storage manager.
 
-    @staticmethod
-    async def save_uploaded_file(file: UploadFile, upload_dir: str) -> tuple[str, str, int]:
+        Args:
+            storage: StorageManager instance for data persistence.
         """
-        保存上传的文件
+        self.storage = storage
+
+    @staticmethod
+    async def save_uploaded_file(
+        file: UploadFile,
+        upload_dir: str,
+    ) -> tuple[str, int]:
+        """保存上传的文件到磁盘
+
+        Args:
+            file: The uploaded file.
+            upload_dir: Directory to save the file.
 
         Returns:
-            (doc_id, file_path, file_size)
+            Tuple of (file_path, file_size).
         """
-        # 生成 doc_id
-        doc_id = DocumentService.generate_doc_id()
-
         # 确保上传目录存在
         Path(upload_dir).mkdir(parents=True, exist_ok=True)
 
-        # 保存文件
-        file_path = os.path.join(upload_dir, f"{doc_id}_{file.filename}")
-        content = await file.read()
+        # 生成唯一文件名
+        file_id = uuid.uuid4().hex[:12]
+        file_path = os.path.join(upload_dir, f"doc-{file_id}_{file.filename}")
 
+        # 保存文件
+        content = await file.read()
         with open(file_path, "wb") as f:
             f.write(content)
 
-        return doc_id, file_path, len(content)
+        return file_path, len(content)
 
-    @staticmethod
-    def create_document_record(
-        doc_id: str,
+    async def create_document(
+        self,
         filename: str,
         file_path: str,
-        file_size: int
-    ):
-        """创建文档记录"""
-        _document_store[doc_id] = {
-            "doc_id": doc_id,
-            "filename": filename,
-            "file_path": file_path,
-            "file_size": file_size,
-            "status": "processing",
-            "progress": 0,
-            "step": "开始处理文档",
-            "chunks_count": 0,
-            "error_message": None,
-            "created_at": datetime.now(),
-            "updated_at": datetime.now()
-        }
-
-    @staticmethod
-    def update_status(
-        doc_id: str,
-        status: str,
-        progress: int = None,
-        step: str = None,
-        chunks_count: int = None,
-        error: str = None
-    ):
-        """更新文档状态"""
-        if doc_id not in _document_store:
-            return
-
-        doc = _document_store[doc_id]
-        doc["status"] = status
-        doc["updated_at"] = datetime.now()
-
-        if progress is not None:
-            doc["progress"] = progress
-        if step is not None:
-            doc["step"] = step
-        if chunks_count is not None:
-            doc["chunks_count"] = chunks_count
-        if error is not None:
-            doc["error_message"] = error
-
-    @staticmethod
-    async def get_document_status(doc_id: str) -> Optional[Dict[str, Any]]:
-        """获取文档状态（优先从 LightRAG 存储读取）"""
-        # 先检查内存存储（用于正在处理的文档）
-        if doc_id in _document_store:
-            return _document_store[doc_id]
-
-        # 从 LightRAG 持久化存储读取
-        if _rag_instance and hasattr(_rag_instance, 'lightrag'):
-            try:
-                doc_status = await _rag_instance.lightrag.doc_status.get_by_id(doc_id)
-                if doc_status:
-                    # 转换为前端需要的格式
-                    return {
-                        "doc_id": doc_id,
-                        "filename": doc_status.get("file_path", "").split("_", 1)[-1] if doc_status.get("file_path") else "unknown",
-                        "file_path": doc_status.get("file_path", ""),
-                        "status": "completed" if doc_status.get("status") == "PROCESSED" else "processing",
-                        "progress": 100 if doc_status.get("status") == "PROCESSED" else 50,
-                        "step": "文档已处理完成",
-                        "chunks_count": doc_status.get("chunks_count", 0),
-                        "created_at": datetime.fromtimestamp(doc_status.get("create_time", 0)) if doc_status.get("create_time") else datetime.now(),
-                        "updated_at": datetime.now()
-                    }
-            except Exception as e:
-                print(f"Error reading from LightRAG storage: {e}")
-
-        return None
-
-    @staticmethod
-    async def get_all_documents() -> List[Dict[str, Any]]:
-        """获取所有文档（从 LightRAG 存储和内存存储）"""
-        all_docs = []
-
-        # 1. 从 LightRAG 持久化存储读取
-        if _rag_instance and hasattr(_rag_instance, 'lightrag'):
-            try:
-                # 确保 LightRAG 已初始化
-                if _rag_instance.lightrag is None:
-                    await _rag_instance._ensure_lightrag_initialized()
-
-                doc_status_storage = _rag_instance.lightrag.doc_status
-
-                # 使用 get_docs_paginated 方法获取所有文档
-                # 返回值是 tuple[list[tuple[str, dict]], int]
-                docs_list, total_count = await doc_status_storage.get_docs_paginated(
-                    status_filter=None,  # 获取所有状态的文档
-                    page=1,
-                    page_size=10000,  # 足够大以获取所有文档
-                    sort_field="created_at",
-                    sort_direction="desc"
-                )
-
-                print(f"Found {total_count} documents in storage")
-
-                # doc_data 是 DocProcessingStatus 对象，需要使用属性访问
-                from lightrag.base import DocStatus
-                from dateutil import parser as date_parser
-
-                for doc_id, doc_data in docs_list:
-                    # 提取文件名（从 file_path）
-                    file_path = doc_data.file_path
-                    filename = Path(file_path).name if file_path else "unknown"
-                    # 如果文件名包含 doc_id 前缀，移除它
-                    if "_" in filename:
-                        filename = filename.split("_", 1)[-1]
-
-                    # 状态处理：doc_data.status 是 DocStatus 枚举
-                    is_completed = doc_data.status == DocStatus.PROCESSED
-
-                    # 解析创建时间
-                    created_at = doc_data.created_at
-                    if created_at:
-                        # 如果是字符串格式的 ISO 时间
-                        if isinstance(created_at, str):
-                            try:
-                                created_at = date_parser.parse(created_at)
-                            except:
-                                created_at = datetime.now()
-                        else:
-                            created_at = datetime.now()
-                    else:
-                        created_at = datetime.now()
-
-                    all_docs.append({
-                        "doc_id": doc_id,
-                        "filename": filename,
-                        "file_path": file_path,
-                        "status": "completed" if is_completed else "processing",
-                        "progress": 100 if is_completed else 50,
-                        "chunks_count": doc_data.chunks_count or 0,
-                        "created_at": created_at
-                    })
-
-            except Exception as e:
-                print(f"Error reading documents from LightRAG storage: {e}")
-                import traceback
-                traceback.print_exc()
-
-        # 2. 添加内存中正在处理的文档
-        for doc_id, doc_data in _document_store.items():
-            # 避免重复
-            if not any(d["doc_id"] == doc_id for d in all_docs):
-                all_docs.append(doc_data)
-
-        # 按创建时间倒序排序
-        all_docs.sort(key=lambda x: x.get("created_at", datetime.min), reverse=True)
-
-        return all_docs
-
-    @staticmethod
-    async def process_document(rag, doc_id: str, file_path: str):
-        """
-        处理文档（后台任务）
+        file_size: int,
+        mime_type: str,
+    ) -> Document:
+        """创建文档记录
 
         Args:
-            rag: RAGAnything 实例
-            doc_id: 文档 ID
-            file_path: 文件路径
+            filename: Original filename.
+            file_path: Path where file is stored.
+            file_size: Size of the file in bytes.
+            mime_type: MIME type of the file.
+
+        Returns:
+            The created Document.
+        """
+        return await self.storage.documents.create(
+            filename=filename,
+            file_path=file_path,
+            file_size=file_size,
+            mime_type=mime_type,
+        )
+
+    async def create_document_with_task(
+        self,
+        filename: str,
+        file_path: str,
+        file_size: int,
+        mime_type: str,
+        callback_url: Optional[str] = None,
+    ) -> tuple[Document, Task, Optional[Any]]:
+        """事务创建文档、任务、Webhook
+
+        Creates a document, associated processing task, and optional webhook
+        in a single transaction. If any step fails, all changes are rolled back.
+
+        Args:
+            filename: Original filename.
+            file_path: Path where file is stored.
+            file_size: Size of the file in bytes.
+            mime_type: MIME type of the file.
+            callback_url: Optional webhook callback URL.
+
+        Returns:
+            Tuple of (Document, Task, Webhook or None).
+
+        Raises:
+            ServiceError: If transaction fails.
         """
         try:
-            # 步骤 1: 下载模型（首次使用）
-            DocumentService.update_status(
-                doc_id,
-                "processing",
-                5,
-                "准备 AI 模型（首次使用需下载）..."
+            await self.storage.begin_transaction()
+
+            # 创建文档
+            document = await self.storage.documents.create(
+                filename=filename,
+                file_path=file_path,
+                file_size=file_size,
+                mime_type=mime_type,
             )
 
-            # 步骤 2: 解析文档
-            DocumentService.update_status(
-                doc_id,
-                "processing",
-                15,
-                "正在解析 PDF 文档（提取文本、图片、表格、公式）..."
+            # 创建任务
+            task = await self.storage.tasks.create(
+                document_id=document.id,
+                task_type="document_processing",
             )
 
-            # 步骤 3: 处理文本内容
-            DocumentService.update_status(
-                doc_id,
-                "processing",
-                40,
-                "正在处理文本内容..."
-            )
+            # 创建 webhook（如果需要）
+            webhook = None
+            if callback_url:
+                webhook = await self.storage.webhooks.create(
+                    document_id=document.id,
+                    callback_url=callback_url,
+                    event_type="document.processed",
+                )
 
-            # 处理文档（这是主要耗时操作）
-            # Note: formula=False to avoid transformers compatibility issue with MinerU Unimernet
-            await rag.process_document_complete(file_path, formula=False)
-
-            # 步骤 4: 处理多模态内容
-            DocumentService.update_status(
-                doc_id,
-                "processing",
-                70,
-                "正在处理多模态内容（图片、表格、公式）..."
-            )
-
-            # 步骤 5: 构建知识图谱
-            DocumentService.update_status(
-                doc_id,
-                "processing",
-                90,
-                "正在构建知识图谱和实体关系..."
-            )
-
-            # 获取处理后的 chunks 数量
-            try:
-                # 从 RAGAnything 获取文档状态
-                doc_status = await rag.lightrag.doc_status.get_by_id(doc_id)
-                chunks_count = doc_status.get("chunks_count", 0) if doc_status else 0
-            except:
-                # 如果获取失败，使用默认值
-                chunks_count = 0
-
-            # 完成
-            DocumentService.update_status(
-                doc_id,
-                "completed",
-                100,
-                "文档处理完成",
-                chunks_count=chunks_count
-            )
+            await self.storage.commit()
+            return document, task, webhook
 
         except Exception as e:
-            # 更新状态：failed
-            DocumentService.update_status(
-                doc_id,
-                "failed",
-                0,
-                "处理失败",
-                error=str(e)
+            await self.storage.rollback()
+            raise ServiceError(f"Failed to create document: {e}") from e
+
+    async def get_document(self, doc_id: UUID) -> Optional[Document]:
+        """获取文档记录
+
+        Args:
+            doc_id: Document ID.
+
+        Returns:
+            The Document if found, None otherwise.
+        """
+        return await self.storage.documents.get(doc_id)
+
+    async def get_document_with_status(
+        self,
+        doc_id: UUID,
+    ) -> Optional[Dict[str, Any]]:
+        """获取文档及其处理状态（聚合 Document + Task + Webhook）
+
+        Retrieves document information along with its latest task status
+        and webhook configuration.
+
+        Args:
+            doc_id: Document ID.
+
+        Returns:
+            Dictionary with aggregated document status, or None if not found.
+        """
+        # 并发获取数据
+        document, tasks, webhooks = await asyncio.gather(
+            self.storage.documents.get(doc_id),
+            self.storage.tasks.get_by_document(doc_id),
+            self.storage.webhooks.get_by_document(doc_id),
+        )
+
+        if not document:
+            return None
+
+        # 获取最新任务
+        latest_task = tasks[0] if tasks else None
+
+        # 获取 webhook
+        webhook = webhooks[0] if webhooks else None
+
+        # 组合数据
+        return {
+            "doc_id": str(document.id),
+            "filename": document.filename,
+            "file_path": document.file_path,
+            "file_size": document.file_size,
+            "mime_type": document.mime_type,
+            "status": (
+                latest_task.status.value if latest_task else document.status.value
+            ),
+            "progress": latest_task.progress if latest_task else 0,
+            "step": latest_task.step if latest_task else "等待处理",
+            "chunks_count": (
+                latest_task.result.get("chunks_count", 0)
+                if latest_task and latest_task.result
+                else 0
+            ),
+            "callback_url": webhook.callback_url if webhook else None,
+            "error_message": document.error_message
+            or (latest_task.last_error if latest_task else None),
+            "created_at": document.created_at,
+            "updated_at": document.updated_at,
+        }
+
+    async def list_documents_with_status(
+        self,
+        status: Optional[str] = None,
+        limit: int = 100,
+    ) -> List[Dict[str, Any]]:
+        """批量获取文档状态
+
+        Retrieves multiple documents with their task status using batch
+        queries to avoid N+1 performance issues.
+
+        Args:
+            status: Optional status filter.
+            limit: Maximum number of documents to return.
+
+        Returns:
+            List of document status dictionaries.
+        """
+        # 获取所有文档
+        documents = await self.storage.documents.list(
+            status=status,
+            limit=limit,
+        )
+
+        if not documents:
+            return []
+
+        # 批量获取所有文档的任务（一次查询）
+        doc_ids = [doc.id for doc in documents]
+        all_tasks = await self.storage.tasks.get_by_documents_batch(doc_ids)
+
+        # 按 document_id 分组
+        tasks_by_doc: Dict[UUID, List[Task]] = {}
+        for task in all_tasks:
+            if task.document_id not in tasks_by_doc:
+                tasks_by_doc[task.document_id] = []
+            tasks_by_doc[task.document_id].append(task)
+
+        # 组合数据
+        results = []
+        for doc in documents:
+            tasks = tasks_by_doc.get(doc.id, [])
+            latest_task = (
+                max(tasks, key=lambda t: t.created_at) if tasks else None
             )
-            raise
+
+            results.append({
+                "doc_id": str(doc.id),
+                "filename": doc.filename,
+                "file_path": doc.file_path,
+                "file_size": doc.file_size,
+                "status": (
+                    latest_task.status.value if latest_task else doc.status.value
+                ),
+                "progress": latest_task.progress if latest_task else 0,
+                "step": latest_task.step if latest_task else "等待处理",
+                "created_at": doc.created_at,
+                "updated_at": doc.updated_at,
+            })
+
+        return results
+
+    async def update_status(
+        self,
+        doc_id: UUID,
+        status: DocumentStatus,
+        error_message: Optional[str] = None,
+    ) -> bool:
+        """更新文档状态
+
+        Args:
+            doc_id: Document ID.
+            status: New status.
+            error_message: Optional error message.
+
+        Returns:
+            True if update was successful.
+        """
+        return await self.storage.documents.update_status(
+            doc_id,
+            status.value,
+            error_message,
+        )
+
+    async def delete_document(self, doc_id: UUID) -> bool:
+        """删除文档（级联删除任务和 webhook）
+
+        Deletes the document and all associated tasks and webhooks
+        in a transactional manner.
+
+        Args:
+            doc_id: Document ID.
+
+        Returns:
+            True if deletion was successful.
+        """
+        try:
+            await self.storage.begin_transaction()
+
+            # Delete associated tasks first
+            await self.storage.tasks.delete_by_document(doc_id)
+
+            # Delete associated webhooks
+            await self.storage.webhooks.delete_by_document(doc_id)
+
+            # Delete the document
+            result = await self.storage.documents.delete(doc_id)
+
+            await self.storage.commit()
+            return result
+
+        except Exception as e:
+            await self.storage.rollback()
+            raise ServiceError(f"Failed to delete document: {e}") from e

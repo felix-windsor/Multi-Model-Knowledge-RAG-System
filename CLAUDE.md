@@ -34,16 +34,28 @@ Access: http://localhost:8000 (frontend) | http://localhost:8000/docs (API docs)
 cd backend
 python -m pytest tests/
 
-# Run a single test file
-python -m pytest tests/test_api_key.py
+# Run specific test categories
+python -m pytest tests/storage/      # Storage layer tests
+python -m pytest tests/services/     # Service layer tests
+python -m pytest tests/integration/  # API integration tests
 
 # Run with verbose output
 python -m pytest tests/ -v
 ```
 
-Tests are standalone scripts that can also be run directly:
-```bash
-python backend/tests/test_api_key.py
+**Test Structure:**
+```
+backend/tests/
+├── storage/           # Storage layer unit tests
+│   ├── test_local_document.py
+│   ├── test_local_task.py
+│   └── test_local_webhook.py
+├── services/          # Service layer unit tests
+│   ├── test_document_service.py
+│   └── test_task_service.py
+├── integration/       # API integration tests
+│   └── test_document_flow.py
+└── conftest.py        # Shared fixtures
 ```
 
 ## Architecture
@@ -52,21 +64,24 @@ python backend/tests/test_api_key.py
 ┌─────────────────────────────────────────┐
 │  Frontend (HTML + Bootstrap + JS)       │  Served by FastAPI, no separate server
 ├─────────────────────────────────────────┤
-│  FastAPI Routes (backend/app/api/)      │  /upload, /documents, /query, /graph
+│  FastAPI Routes (backend/app/api/)      │  /api/v1/*, /api/* (legacy)
 ├─────────────────────────────────────────┤
-│  Services (backend/app/services/)       │  DocumentService, GraphService, LLMFactory
+│  Services (backend/app/services/)       │  DocumentService, TaskService, WebhookService
 ├─────────────────────────────────────────┤
-│  RAGAnything (backend/knowledge_graph_rag/)  │  Multimodal RAG wrapper
+│  StorageManager (backend/app/storage/)  │  Unified storage abstraction layer
 ├─────────────────────────────────────────┤
-│  LightRAG + Storage                     │  Vector/graph/KV storage in data/storage/
+│  Storage Backends                       │  Local (JSON) or Database (PostgreSQL)
+├─────────────────────────────────────────┤
+│  RAGAnything + LightRAG                 │  Multimodal RAG with vector/graph storage
 └─────────────────────────────────────────┘
 ```
 
 **Key patterns:**
-- Dependency injection via FastAPI `Depends()` for RAG instance
-- Factory pattern for multi-model LLM support (`LLMFactory`)
-- Background tasks for async document processing
-- Singleton RAG instance shared across requests
+- **Service Layer Pattern**: Business logic encapsulated in services (DocumentService, TaskService, WebhookService)
+- **Repository Pattern**: StorageManager provides unified interface to storage backends
+- **Dependency Injection**: FastAPI `Depends()` for services and storage
+- **Transaction Support**: Coordinated transactions across document, task, and webhook storage
+- **Background Tasks**: Async document processing with progress tracking
 
 ## Key Files
 
@@ -75,7 +90,11 @@ python backend/tests/test_api_key.py
 | V1 API routes | `backend/app/api/v1/{documents,query,graph,tasks,config}.py` |
 | Legacy API routes | `backend/app/api/{upload,documents,query,graph}.py` |
 | Middleware | `backend/app/middleware/{auth,response}.py` |
-| Business logic | `backend/app/services/{document_service,graph_service,task_service,webhook_service}.py` |
+| Services | `backend/app/services/{document_service,task_service,webhook_service}.py` |
+| Storage abstraction | `backend/app/storage/base.py` (interfaces), `backend/app/storage/models.py` |
+| Local storage | `backend/app/storage/local/{document,task,webhook}.py` |
+| Database storage | `backend/app/storage/database/{document,task,webhook}.py` |
+| Dependencies | `backend/app/dependencies.py` (DI providers) |
 | Request/Response models | `backend/app/models/{request,response}.py` |
 | App config | `backend/app/config.py` (loads from root `.env`) |
 | RAG core | `backend/knowledge_graph_rag/raganything.py` |
@@ -215,10 +234,34 @@ API_KEYS=sk-key1,sk-key2
 curl -H "X-API-Key: sk-key1" http://localhost:8000/api/v1/health
 ```
 
+## Storage Configuration
+
+The system supports two storage backends for document metadata, tasks, and webhooks:
+
+**Local Storage (default):**
+```
+STORAGE_BACKEND=local
+```
+Stores data as JSON files in `data/storage/`. Good for development and single-instance deployments.
+
+**Database Storage:**
+```
+STORAGE_BACKEND=database
+DATABASE_URL=postgresql://user:pass@localhost:5432/ragdb
+```
+Uses PostgreSQL for persistent storage. Recommended for production and multi-instance deployments.
+
+**Storage Architecture:**
+- `StorageManager`: Unified interface coordinating document, task, and webhook storage
+- `DocumentStorage`: Document metadata (filename, status, file_path)
+- `TaskStorage`: Processing tasks with progress tracking
+- `WebhookStorage`: Callback URLs for async notifications
+- Supports transactions across all storage types
+
 ## Data Directories
 
 - `data/uploads/` - Uploaded documents
-- `data/storage/` - RAG storage (vectors, graphs, KV)
+- `data/storage/` - RAG storage (vectors, graphs, KV) and local JSON storage
 - `data/output/` - Processed document output
 
 ## External Dependencies

@@ -8,7 +8,7 @@ switching between storage backends.
 
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from .models import Document, Task, Webhook
@@ -106,6 +106,33 @@ class DocumentStorage(ABC):
         """
         pass
 
+    @abstractmethod
+    async def begin_transaction(self) -> None:
+        """Begin a transaction (if supported by backend).
+
+        For local storage, this creates a snapshot of current state.
+        For database storage, this starts an actual database transaction.
+        """
+        pass
+
+    @abstractmethod
+    async def commit_transaction(self) -> None:
+        """Commit the current transaction.
+
+        For local storage, this persists changes to disk.
+        For database storage, this commits the database transaction.
+        """
+        pass
+
+    @abstractmethod
+    async def rollback_transaction(self) -> None:
+        """Rollback the current transaction.
+
+        For local storage, this restores from the snapshot.
+        For database storage, this rolls back the database transaction.
+        """
+        pass
+
 
 class TaskStorage(ABC):
     """Abstract interface for background task storage.
@@ -176,12 +203,15 @@ class TaskStorage(ABC):
         pass
 
     @abstractmethod
-    async def update_progress(self, task_id: UUID, progress: int) -> bool:
+    async def update_progress(
+        self, task_id: UUID, progress: int, step: Optional[str] = None
+    ) -> bool:
         """Update the progress of a task.
 
         Args:
             task_id: Unique identifier of the task.
             progress: Progress percentage (0-100).
+            step: Optional description of the current processing step.
 
         Returns:
             True if successful, False if task not found.
@@ -227,6 +257,48 @@ class TaskStorage(ABC):
         Returns:
             True if successful, False if task not found or cannot be cancelled.
         """
+        pass
+
+    @abstractmethod
+    async def get_by_documents_batch(self, doc_ids: List[UUID]) -> List[Task]:
+        """Retrieve all tasks for multiple documents in a single query.
+
+        This method enables efficient batch loading of tasks for multiple
+        documents, avoiding N+1 query issues in list endpoints.
+
+        Args:
+            doc_ids: List of document IDs to query tasks for.
+
+        Returns:
+            List of all tasks associated with the given document IDs.
+        """
+        pass
+
+    @abstractmethod
+    async def delete_by_document(self, document_id: UUID) -> int:
+        """Delete all tasks for a document.
+
+        Args:
+            document_id: ID of the document.
+
+        Returns:
+            Number of tasks deleted.
+        """
+        pass
+
+    @abstractmethod
+    async def begin_transaction(self) -> None:
+        """Begin a transaction (if supported by backend)."""
+        pass
+
+    @abstractmethod
+    async def commit_transaction(self) -> None:
+        """Commit the current transaction."""
+        pass
+
+    @abstractmethod
+    async def rollback_transaction(self) -> None:
+        """Rollback the current transaction."""
         pass
 
 
@@ -326,6 +398,62 @@ class WebhookStorage(ABC):
         """
         pass
 
+    @abstractmethod
+    async def store_payload(
+        self,
+        webhook_id: UUID,
+        data: Dict[str, Any],
+    ) -> bool:
+        """Store payload data with the webhook for retry purposes.
+
+        Args:
+            webhook_id: Unique identifier of the webhook.
+            data: Payload data to store.
+
+        Returns:
+            True if successful, False if webhook not found.
+        """
+        pass
+
+    @abstractmethod
+    async def get_payload(self, webhook_id: UUID) -> Optional[Dict[str, Any]]:
+        """Retrieve stored payload data for a webhook.
+
+        Args:
+            webhook_id: Unique identifier of the webhook.
+
+        Returns:
+            Stored payload data if found, None otherwise.
+        """
+        pass
+
+    @abstractmethod
+    async def delete_by_document(self, document_id: UUID) -> int:
+        """Delete all webhooks for a document.
+
+        Args:
+            document_id: ID of the document.
+
+        Returns:
+            Number of webhooks deleted.
+        """
+        pass
+
+    @abstractmethod
+    async def begin_transaction(self) -> None:
+        """Begin a transaction (if supported by backend)."""
+        pass
+
+    @abstractmethod
+    async def commit_transaction(self) -> None:
+        """Commit the current transaction."""
+        pass
+
+    @abstractmethod
+    async def rollback_transaction(self) -> None:
+        """Rollback the current transaction."""
+        pass
+
 
 class StorageManager:
     """Unified storage manager providing access to all storage interfaces.
@@ -356,3 +484,49 @@ class StorageManager:
         self.documents = documents
         self.tasks = tasks
         self.webhooks = webhooks
+
+    async def begin_transaction(self) -> None:
+        """Begin transaction across all storage instances.
+
+        This starts a transaction on all storage backends. For local storage,
+        this creates snapshots. For database storage, this begins actual
+        database transactions.
+        """
+        await self.documents.begin_transaction()
+        await self.tasks.begin_transaction()
+        await self.webhooks.begin_transaction()
+
+    async def commit(self) -> None:
+        """Commit transaction across all storage instances.
+
+        This commits changes on all storage backends. For local storage,
+        this persists to disk. For database storage, this commits the
+        database transactions.
+        """
+        await self.documents.commit_transaction()
+        await self.tasks.commit_transaction()
+        await self.webhooks.commit_transaction()
+
+    async def rollback(self) -> None:
+        """Rollback transaction across all storage instances.
+
+        This rolls back changes on all storage backends. For local storage,
+        this restores from snapshots. For database storage, this rolls back
+        the database transactions.
+        """
+        await self.documents.rollback_transaction()
+        await self.tasks.rollback_transaction()
+        await self.webhooks.rollback_transaction()
+
+    async def close(self) -> None:
+        """Close all storage connections gracefully.
+
+        This should be called during application shutdown to properly
+        release database connections and other resources.
+        """
+        if hasattr(self.documents, "close"):
+            await self.documents.close()
+        if hasattr(self.tasks, "close"):
+            await self.tasks.close()
+        if hasattr(self.webhooks, "close"):
+            await self.webhooks.close()

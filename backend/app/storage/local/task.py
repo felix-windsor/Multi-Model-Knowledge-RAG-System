@@ -1,5 +1,6 @@
 """Local file-based task storage implementation."""
 
+import copy
 import json
 import uuid
 from datetime import datetime
@@ -27,6 +28,7 @@ class LocalTaskStorage(TaskStorage):
         """
         self.storage_dir = Path(storage_dir)
         self.tasks_file = self.storage_dir / "tasks.json"
+        self._tx_snapshot: Optional[Dict[str, dict]] = None
         self._ensure_storage_exists()
 
     def _ensure_storage_exists(self) -> None:
@@ -71,6 +73,7 @@ class LocalTaskStorage(TaskStorage):
             task_type=data["task_type"],
             status=TaskStatus(data["status"]),
             progress=data.get("progress", 0),
+            step=data.get("step"),
             retry_count=data.get("retry_count", 0),
             max_retries=data.get("max_retries", 3),
             last_error=data.get("last_error"),
@@ -109,6 +112,7 @@ class LocalTaskStorage(TaskStorage):
             "task_type": task_type,
             "status": TaskStatus.PENDING.value,
             "progress": 0,
+            "step": None,
             "retry_count": 0,
             "max_retries": 3,
             "last_error": None,
@@ -213,12 +217,15 @@ class LocalTaskStorage(TaskStorage):
         self._save_tasks(tasks)
         return True
 
-    async def update_progress(self, task_id: UUID, progress: int) -> bool:
+    async def update_progress(
+        self, task_id: UUID, progress: int, step: Optional[str] = None
+    ) -> bool:
         """Update the progress of a task.
 
         Args:
             task_id: Unique identifier of the task.
             progress: Progress percentage (0-100).
+            step: Optional description of the current processing step.
 
         Returns:
             True if successful, False if task not found.
@@ -230,6 +237,8 @@ class LocalTaskStorage(TaskStorage):
             return False
 
         tasks[task_key]["progress"] = max(0, min(100, progress))
+        if step is not None:
+            tasks[task_key]["step"] = step
 
         self._save_tasks(tasks)
         return True
@@ -325,3 +334,69 @@ class LocalTaskStorage(TaskStorage):
 
         self._save_tasks(tasks)
         return True
+
+    async def get_by_documents_batch(self, doc_ids: List[UUID]) -> List[Task]:
+        """Retrieve all tasks for multiple documents in a single query.
+
+        Args:
+            doc_ids: List of document IDs to query tasks for.
+
+        Returns:
+            List of all tasks associated with the given document IDs.
+        """
+        if not doc_ids:
+            return []
+
+        tasks = self._load_tasks()
+        doc_ids_set = {str(doc_id) for doc_id in doc_ids}
+
+        result = [
+            self._task_from_dict(data)
+            for data in tasks.values()
+            if data["document_id"] in doc_ids_set
+        ]
+
+        result.sort(key=lambda x: x.created_at, reverse=True)
+        return result
+
+    async def delete_by_document(self, document_id: UUID) -> int:
+        """Delete all tasks for a document.
+
+        Args:
+            document_id: ID of the document.
+
+        Returns:
+            Number of tasks deleted.
+        """
+        tasks = self._load_tasks()
+        doc_id_str = str(document_id)
+
+        to_delete = [
+            task_id
+            for task_id, data in tasks.items()
+            if data["document_id"] == doc_id_str
+        ]
+
+        for task_id in to_delete:
+            del tasks[task_id]
+
+        self._save_tasks(tasks)
+        return len(to_delete)
+
+    async def begin_transaction(self) -> None:
+        """Create a snapshot of current state for potential rollback."""
+        self._tx_snapshot = copy.deepcopy(self._load_tasks())
+
+    async def commit_transaction(self) -> None:
+        """Commit changes by clearing the snapshot.
+
+        Changes are already persisted to disk during individual operations,
+        so commit just clears the rollback snapshot.
+        """
+        self._tx_snapshot = None
+
+    async def rollback_transaction(self) -> None:
+        """Rollback to snapshot state by restoring from the saved snapshot."""
+        if self._tx_snapshot is not None:
+            self._save_tasks(self._tx_snapshot)
+            self._tx_snapshot = None

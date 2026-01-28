@@ -2,8 +2,10 @@
 
 import uuid
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, List, Optional
 from uuid import UUID
+
+import asyncpg
 
 from ..base import DocumentStorage
 from ..models import Document, DocumentStatus
@@ -17,6 +19,51 @@ class DatabaseDocumentStorage(DocumentStorage):
     as the underlying storage backend. It provides CRUD operations for
     document records with proper connection pool management.
     """
+
+    def __init__(self) -> None:
+        """Initialize database document storage."""
+        self._conn: Optional[asyncpg.Connection] = None
+        self._tx: Optional[Any] = None
+
+    async def _get_connection(self) -> asyncpg.Connection:
+        """Get connection for query (transaction conn or new from pool).
+
+        Returns:
+            The transaction connection if active, otherwise acquires from pool.
+        """
+        if self._conn is not None:
+            return self._conn
+        return await DatabasePool.get_pool().acquire()
+
+    async def _release_connection(self, conn: asyncpg.Connection) -> None:
+        """Release connection back to pool if not in transaction mode."""
+        if self._conn is None:
+            await DatabasePool.get_pool().release(conn)
+
+    async def begin_transaction(self) -> None:
+        """Acquire connection and start transaction."""
+        pool = DatabasePool.get_pool()
+        self._conn = await pool.acquire()
+        self._tx = self._conn.transaction()
+        await self._tx.start()
+
+    async def commit_transaction(self) -> None:
+        """Commit transaction and release connection."""
+        if self._tx is not None:
+            await self._tx.commit()
+            self._tx = None
+        if self._conn is not None:
+            await DatabasePool.get_pool().release(self._conn)
+            self._conn = None
+
+    async def rollback_transaction(self) -> None:
+        """Rollback transaction and release connection."""
+        if self._tx is not None:
+            await self._tx.rollback()
+            self._tx = None
+        if self._conn is not None:
+            await DatabasePool.get_pool().release(self._conn)
+            self._conn = None
 
     async def create(
         self,
@@ -39,7 +86,8 @@ class DatabaseDocumentStorage(DocumentStorage):
         doc_id = uuid.uuid4()
         now = datetime.now()
 
-        async with DatabasePool.connection() as conn:
+        conn = await self._get_connection()
+        try:
             await conn.execute(
                 """
                 INSERT INTO documents (id, filename, file_path, file_size, mime_type, status, created_at, updated_at)
@@ -54,6 +102,8 @@ class DatabaseDocumentStorage(DocumentStorage):
                 now,
                 now,
             )
+        finally:
+            await self._release_connection(conn)
 
         return Document(
             id=doc_id,

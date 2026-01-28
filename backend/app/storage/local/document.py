@@ -1,10 +1,11 @@
 """Local file-based document storage implementation."""
 
+import copy
 import json
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 from uuid import UUID
 
 from ..base import DocumentStorage
@@ -27,6 +28,7 @@ class LocalDocumentStorage(DocumentStorage):
         """
         self.storage_dir = Path(storage_dir)
         self.documents_file = self.storage_dir / "documents.json"
+        self._tx_snapshot: Optional[Dict[str, dict]] = None
         self._ensure_storage_exists()
 
     def _ensure_storage_exists(self) -> None:
@@ -224,3 +226,21 @@ class LocalDocumentStorage(DocumentStorage):
         del documents[doc_key]
         self._save_documents(documents)
         return True
+
+    async def begin_transaction(self) -> None:
+        """Create a snapshot of current state for potential rollback."""
+        self._tx_snapshot = copy.deepcopy(self._load_documents())
+
+    async def commit_transaction(self) -> None:
+        """Commit changes by clearing the snapshot.
+
+        Changes are already persisted to disk during individual operations,
+        so commit just clears the rollback snapshot.
+        """
+        self._tx_snapshot = None
+
+    async def rollback_transaction(self) -> None:
+        """Rollback to snapshot state by restoring from the saved snapshot."""
+        if self._tx_snapshot is not None:
+            self._save_documents(self._tx_snapshot)
+            self._tx_snapshot = None

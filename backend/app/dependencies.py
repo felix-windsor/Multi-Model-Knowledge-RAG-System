@@ -4,12 +4,17 @@ import sys
 from pathlib import Path
 from functools import lru_cache
 
+from fastapi import Depends
+
 # 添加 knowledge-graph-rag 到 Python 路径
 backend_path = Path(__file__).parent.parent
 sys.path.insert(0, str(backend_path))
 
 from knowledge_graph_rag import RAGAnything, RAGAnythingConfig
 from app.services.llm_factory import ModelFactory, LLMFactory
+from app.services.document_service import DocumentService
+from app.services.task_service import TaskService
+from app.services.webhook_service import WebhookService
 from app.config import settings
 from app.storage import StorageManager, get_storage_manager
 
@@ -124,3 +129,52 @@ async def get_storage() -> StorageManager:
             return await storage.documents.list()
     """
     return await get_storage_manager()
+
+
+async def get_document_service(
+    storage: StorageManager = Depends(get_storage),
+) -> DocumentService:
+    """
+    FastAPI dependency for document service.
+
+    Use with Depends() to inject into route handlers:
+        @router.post("/documents/upload")
+        async def upload_document(
+            doc_svc: DocumentService = Depends(get_document_service),
+        ):
+            ...
+    """
+    return DocumentService(storage)
+
+
+async def get_task_service(
+    storage: StorageManager = Depends(get_storage),
+) -> TaskService:
+    """
+    FastAPI dependency for task service.
+
+    Use with Depends() to inject into route handlers:
+        @router.get("/tasks/{task_id}")
+        async def get_task(
+            task_id: str,
+            task_svc: TaskService = Depends(get_task_service),
+        ):
+            ...
+    """
+    return TaskService(storage)
+
+
+async def get_webhook_service(
+    storage: StorageManager = Depends(get_storage),
+) -> WebhookService:
+    """
+    FastAPI dependency for webhook service.
+
+    Use with Depends() to inject into route handlers:
+        @router.post("/webhooks")
+        async def create_webhook(
+            webhook_svc: WebhookService = Depends(get_webhook_service),
+        ):
+            ...
+    """
+    return WebhookService(storage)

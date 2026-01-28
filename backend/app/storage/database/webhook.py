@@ -1,9 +1,12 @@
 """PostgreSQL webhook storage implementation."""
 
+import json
 import uuid
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
+
+import asyncpg
 
 from ..base import WebhookStorage
 from ..models import Webhook, WebhookStatus
@@ -18,6 +21,47 @@ class DatabaseWebhookStorage(WebhookStorage):
     webhook records including delivery tracking and retry scheduling.
     """
 
+    def __init__(self) -> None:
+        """Initialize database webhook storage."""
+        self._conn: Optional[asyncpg.Connection] = None
+        self._tx: Optional[Any] = None
+
+    async def _get_connection(self) -> asyncpg.Connection:
+        """Get connection for query (transaction conn or new from pool)."""
+        if self._conn is not None:
+            return self._conn
+        return await DatabasePool.get_pool().acquire()
+
+    async def _release_connection(self, conn: asyncpg.Connection) -> None:
+        """Release connection back to pool if not in transaction mode."""
+        if self._conn is None:
+            await DatabasePool.get_pool().release(conn)
+
+    async def begin_transaction(self) -> None:
+        """Acquire connection and start transaction."""
+        pool = DatabasePool.get_pool()
+        self._conn = await pool.acquire()
+        self._tx = self._conn.transaction()
+        await self._tx.start()
+
+    async def commit_transaction(self) -> None:
+        """Commit transaction and release connection."""
+        if self._tx is not None:
+            await self._tx.commit()
+            self._tx = None
+        if self._conn is not None:
+            await DatabasePool.get_pool().release(self._conn)
+            self._conn = None
+
+    async def rollback_transaction(self) -> None:
+        """Rollback transaction and release connection."""
+        if self._tx is not None:
+            await self._tx.rollback()
+            self._tx = None
+        if self._conn is not None:
+            await DatabasePool.get_pool().release(self._conn)
+            self._conn = None
+
     def _row_to_webhook(self, row) -> Webhook:
         """Convert a database row to a Webhook model.
 
@@ -27,6 +71,13 @@ class DatabaseWebhookStorage(WebhookStorage):
         Returns:
             A Webhook model instance populated from the row data.
         """
+        payload_data: Optional[Dict[str, Any]] = None
+        if row.get("payload_data") is not None:
+            if isinstance(row["payload_data"], str):
+                payload_data = json.loads(row["payload_data"])
+            else:
+                payload_data = row["payload_data"]
+
         return Webhook(
             id=row["id"],
             document_id=row["document_id"],
@@ -36,6 +87,7 @@ class DatabaseWebhookStorage(WebhookStorage):
             retry_count=row["retry_count"],
             max_retries=row["max_retries"],
             last_error=row["last_error"],
+            payload_data=payload_data,
             next_retry_at=row["next_retry_at"],
             delivered_at=row["delivered_at"],
         )
@@ -58,7 +110,8 @@ class DatabaseWebhookStorage(WebhookStorage):
         """
         webhook_id = uuid.uuid4()
 
-        async with DatabasePool.connection() as conn:
+        conn = await self._get_connection()
+        try:
             await conn.execute(
                 """
                 INSERT INTO webhooks (id, document_id, callback_url, event_type, status)
@@ -70,6 +123,8 @@ class DatabaseWebhookStorage(WebhookStorage):
                 event_type,
                 WebhookStatus.PENDING.value,
             )
+        finally:
+            await self._release_connection(conn)
 
         return Webhook(
             id=webhook_id,
@@ -229,3 +284,73 @@ class DatabaseWebhookStorage(WebhookStorage):
                 )
 
         return True
+
+    async def store_payload(
+        self,
+        webhook_id: UUID,
+        data: Dict[str, Any],
+    ) -> bool:
+        """Store payload data with the webhook for retry purposes.
+
+        Args:
+            webhook_id: Unique identifier of the webhook.
+            data: Payload data to store.
+
+        Returns:
+            True if successful, False if webhook not found.
+        """
+        payload_json = json.dumps(data) if data is not None else None
+
+        conn = await self._get_connection()
+        try:
+            result = await conn.execute(
+                "UPDATE webhooks SET payload_data = $1 WHERE id = $2",
+                payload_json,
+                webhook_id,
+            )
+            return result == "UPDATE 1"
+        finally:
+            await self._release_connection(conn)
+
+    async def get_payload(self, webhook_id: UUID) -> Optional[Dict[str, Any]]:
+        """Retrieve stored payload data for a webhook.
+
+        Args:
+            webhook_id: Unique identifier of the webhook.
+
+        Returns:
+            Stored payload data if found, None otherwise.
+        """
+        async with DatabasePool.connection() as conn:
+            row = await conn.fetchrow(
+                "SELECT payload_data FROM webhooks WHERE id = $1",
+                webhook_id,
+            )
+
+        if not row or row["payload_data"] is None:
+            return None
+
+        if isinstance(row["payload_data"], str):
+            return json.loads(row["payload_data"])
+        return row["payload_data"]
+
+    async def delete_by_document(self, document_id: UUID) -> int:
+        """Delete all webhooks for a document.
+
+        Args:
+            document_id: ID of the document.
+
+        Returns:
+            Number of webhooks deleted.
+        """
+        conn = await self._get_connection()
+        try:
+            result = await conn.execute(
+                "DELETE FROM webhooks WHERE document_id = $1",
+                document_id,
+            )
+            # Parse "DELETE N" to get count
+            count = int(result.split()[-1]) if result else 0
+            return count
+        finally:
+            await self._release_connection(conn)
