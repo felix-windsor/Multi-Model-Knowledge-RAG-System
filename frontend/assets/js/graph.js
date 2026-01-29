@@ -1,316 +1,507 @@
 /**
- * 知识图谱可视化
+ * Neural RAG - Knowledge Graph Visualization
+ * vis.js network with fullscreen, search, and details panel
  */
 
-let network = null;
-let nodesDataSet = null;
-let edgesDataSet = null;
+const GraphManager = {
+    network: null,
+    nodesDataSet: null,
+    edgesDataSet: null,
+    isFullscreen: false,
+    selectedNode: null,
 
-/**
- * 加载知识图谱
- */
-async function loadGraph(docId = null) {
-    const spinner = document.getElementById('graphSpinner');
-    spinner.classList.remove('d-none');
+    init() {
+        this.bindEvents();
+        this.loadGraph();
+    },
 
-    try {
-        const url = docId
-            ? `${API_ENDPOINTS.graph}?doc_id=${docId}&limit=1000`
-            : `${API_ENDPOINTS.graph}?limit=1000`;
+    bindEvents() {
+        // Search
+        const searchInput = document.getElementById('graphSearch');
+        searchInput?.addEventListener('input', debounce((e) => {
+            this.searchNodes(e.target.value);
+        }, 300));
 
-        const response = await fetch(url);
+        // Document filter
+        document.getElementById('graphDocFilter')?.addEventListener('change', (e) => {
+            this.loadGraph(e.target.value === 'all' ? null : e.target.value);
+        });
 
-        if (!response.ok) {
-            throw new Error('加载图谱失败');
+        // Zoom controls
+        document.getElementById('zoomInBtn')?.addEventListener('click', () => {
+            if (this.network) {
+                const scale = this.network.getScale() * 1.3;
+                this.network.moveTo({ scale });
+            }
+        });
+
+        document.getElementById('zoomOutBtn')?.addEventListener('click', () => {
+            if (this.network) {
+                const scale = this.network.getScale() / 1.3;
+                this.network.moveTo({ scale });
+            }
+        });
+
+        document.getElementById('resetViewBtn')?.addEventListener('click', () => {
+            this.resetView();
+        });
+
+        // Fullscreen
+        document.getElementById('fullscreenBtn')?.addEventListener('click', () => {
+            this.toggleFullscreen();
+        });
+
+        // Close details panel
+        document.getElementById('closeDetailsBtn')?.addEventListener('click', () => {
+            this.hideDetailsPanel();
+        });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'f' && document.activeElement?.tagName !== 'INPUT' &&
+                document.activeElement?.tagName !== 'TEXTAREA') {
+                const graphPanel = document.getElementById('panel-graph');
+                if (graphPanel?.classList.contains('active')) {
+                    e.preventDefault();
+                    this.toggleFullscreen();
+                }
+            }
+            if (e.key === 'Escape' && this.isFullscreen) {
+                this.toggleFullscreen();
+            }
+        });
+    },
+
+    async loadGraph(docId = null) {
+        const loading = document.getElementById('graphLoading');
+        if (loading) loading.classList.remove('hidden');
+
+        try {
+            const data = await GraphApi.get(docId);
+
+            this.renderGraph(data);
+            this.updateStats(data.stats);
+            this.updateDocumentFilter();
+
+        } catch (error) {
+            console.error('Failed to load graph:', error);
+            Toast.error('Failed to load knowledge graph');
+        } finally {
+            if (loading) loading.classList.add('hidden');
         }
+    },
 
-        const data = await response.json();
-        renderGraph(data);
-        updateGraphStats(data.stats);
-    } catch (error) {
-        console.error('加载图谱失败:', error);
-        showError(`加载图谱失败: ${error.message}`);
-    } finally {
-        spinner.classList.add('d-none');
-    }
-}
+    renderGraph(data) {
+        const container = document.getElementById('graphContainer');
+        if (!container) return;
 
-/**
- * 渲染知识图谱
- */
-function renderGraph(data) {
-    const container = document.getElementById('graphContainer');
-
-    // 创建数据集
-    nodesDataSet = new vis.DataSet(data.nodes.map(node => ({
-        id: node.id,
-        label: node.label,
-        title: createNodeTooltip(node),
-        color: node.color || '#9E9E9E',
-        shape: node.shape || 'dot',
-        size: 20,
-        font: {
-            size: 14,
-            color: '#333333'
-        },
-        data: node  // 保存完整节点数据
-    })));
-
-    edgesDataSet = new vis.DataSet(data.edges.map(edge => ({
-        from: edge.from,
-        to: edge.to,
-        label: edge.label || '',
-        width: edge.width || 1,
-        arrows: 'to',
-        font: {
-            size: 10,
-            align: 'middle',
-            color: '#666666'
-        },
-        smooth: {
-            type: 'continuous'
-        }
-    })));
-
-    // 配置选项
-    const options = {
-        nodes: {
+        // Process nodes
+        const nodes = (data.nodes || []).map(node => ({
+            id: node.id,
+            label: this.truncateLabel(node.label),
+            title: this.createTooltip(node),
+            color: this.getNodeColor(node.type),
+            shape: 'dot',
+            size: 15 + Math.min(node.connections || 0, 10),
+            font: {
+                color: 'var(--text-primary)',
+                size: 12,
+            },
             borderWidth: 2,
             borderWidthSelected: 3,
-            shadow: true
-        },
-        edges: {
+            shadow: {
+                enabled: true,
+                color: 'rgba(0, 212, 255, 0.3)',
+                size: 10,
+            },
+            _data: node,
+        }));
+
+        // Process edges
+        const edges = (data.edges || []).map(edge => ({
+            from: edge.from,
+            to: edge.to,
+            label: edge.label || '',
+            arrows: 'to',
+            width: 1,
             color: {
-                color: '#848484',
-                highlight: '#2B7CE9',
-                hover: '#2B7CE9'
+                color: 'var(--graph-edge)',
+                highlight: 'var(--graph-edge-hover)',
+                hover: 'var(--graph-edge-hover)',
+            },
+            font: {
+                color: 'var(--text-tertiary)',
+                size: 10,
+                strokeWidth: 0,
             },
             smooth: {
                 type: 'continuous',
-                roundness: 0.5
-            }
-        },
-        physics: {
-            enabled: true,
-            stabilization: {
-                enabled: true,
-                iterations: 100,
-                updateInterval: 25
+                roundness: 0.5,
             },
-            barnesHut: {
-                gravitationalConstant: -2000,
-                centralGravity: 0.3,
-                springLength: 95,
-                springConstant: 0.04,
-                damping: 0.09,
-                avoidOverlap: 0.1
+        }));
+
+        this.nodesDataSet = new vis.DataSet(nodes);
+        this.edgesDataSet = new vis.DataSet(edges);
+
+        const options = {
+            nodes: {
+                font: {
+                    face: 'DM Sans, sans-serif',
+                },
+            },
+            edges: {
+                smooth: {
+                    type: 'continuous',
+                },
+            },
+            physics: {
+                enabled: true,
+                stabilization: {
+                    enabled: true,
+                    iterations: 100,
+                    updateInterval: 25,
+                },
+                barnesHut: {
+                    gravitationalConstant: -3000,
+                    centralGravity: 0.3,
+                    springLength: 120,
+                    springConstant: 0.04,
+                    damping: 0.09,
+                    avoidOverlap: 0.2,
+                },
+            },
+            interaction: {
+                hover: true,
+                tooltipDelay: 200,
+                hideEdgesOnDrag: true,
+                hideEdgesOnZoom: true,
+            },
+        };
+
+        // Create or update network
+        if (this.network) {
+            this.network.setData({
+                nodes: this.nodesDataSet,
+                edges: this.edgesDataSet,
+            });
+        } else {
+            this.network = new vis.Network(container, {
+                nodes: this.nodesDataSet,
+                edges: this.edgesDataSet,
+            }, options);
+
+            // Bind network events
+            this.bindNetworkEvents();
+        }
+    },
+
+    bindNetworkEvents() {
+        if (!this.network) return;
+
+        // Click on node
+        this.network.on('click', (params) => {
+            if (params.nodes.length > 0) {
+                const nodeId = params.nodes[0];
+                const node = this.nodesDataSet.get(nodeId);
+                this.showNodeDetails(node._data);
+            } else {
+                this.hideDetailsPanel();
             }
-        },
-        interaction: {
-            hover: true,
-            tooltipDelay: 200,
-            navigationButtons: true,
-            keyboard: true
-        }
-    };
+        });
 
-    // 创建网络
-    network = new vis.Network(container, {
-        nodes: nodesDataSet,
-        edges: edgesDataSet
-    }, options);
+        // Double-click to focus
+        this.network.on('doubleClick', (params) => {
+            if (params.nodes.length > 0) {
+                this.network.focus(params.nodes[0], {
+                    scale: 1.5,
+                    animation: {
+                        duration: 500,
+                        easingFunction: 'easeInOutQuad',
+                    },
+                });
+            }
+        });
 
-    // 绑定事件
-    bindGraphEvents();
-}
+        // Stabilization complete
+        this.network.on('stabilizationIterationsDone', () => {
+            this.network.setOptions({ physics: false });
+        });
 
-/**
- * 绑定图谱事件
- */
-function bindGraphEvents() {
-    if (!network) return;
+        // Hover effects
+        this.network.on('hoverNode', () => {
+            document.body.style.cursor = 'pointer';
+        });
 
-    // 点击节点
-    network.on('click', function(params) {
-        if (params.nodes.length > 0) {
-            const nodeId = params.nodes[0];
-            const node = nodesDataSet.get(nodeId);
-            showNodeDetails(node.data);
-        }
-    });
+        this.network.on('blurNode', () => {
+            document.body.style.cursor = 'default';
+        });
+    },
 
-    // 双击节点 - 聚焦
-    network.on('doubleClick', function(params) {
-        if (params.nodes.length > 0) {
-            network.focus(params.nodes[0], {
-                scale: 1.5,
-                animation: {
-                    duration: 1000,
-                    easingFunction: 'easeInOutQuad'
+    showNodeDetails(node) {
+        const panel = document.getElementById('nodeDetailsPanel');
+        const content = document.getElementById('nodeDetailsContent');
+
+        if (!panel || !content || !node) return;
+
+        this.selectedNode = node;
+
+        // Get connected nodes
+        const connectedIds = this.network.getConnectedNodes(node.id);
+        const connectedEdges = this.network.getConnectedEdges(node.id);
+
+        // Build relations list
+        const relations = connectedEdges.map(edgeId => {
+            const edge = this.edgesDataSet.get(edgeId);
+            const isOutgoing = edge.from === node.id;
+            const targetId = isOutgoing ? edge.to : edge.from;
+            const targetNode = this.nodesDataSet.get(targetId);
+
+            return {
+                direction: isOutgoing ? '→' : '←',
+                label: edge.label || 'related to',
+                target: targetNode?.label || 'Unknown',
+                targetId,
+            };
+        });
+
+        const typeColor = this.getNodeColor(node.type);
+
+        content.innerHTML = `
+            <div class="node-label">${escapeHtml(node.label)}</div>
+            <div class="node-type" style="background: ${typeColor}20; color: ${typeColor};">
+                ${node.type || 'Entity'}
+            </div>
+            ${node.description ? `
+                <div class="node-description">${escapeHtml(node.description)}</div>
+            ` : ''}
+            ${relations.length > 0 ? `
+                <div class="node-relations">
+                    <h4>Relations (${relations.length})</h4>
+                    ${relations.slice(0, 10).map(r => `
+                        <div class="relation-item" data-target-id="${r.targetId}">
+                            <span class="relation-arrow">${r.direction}</span>
+                            <span class="relation-label">${escapeHtml(r.label)}</span>
+                            <span class="relation-target">${escapeHtml(r.target)}</span>
+                        </div>
+                    `).join('')}
+                    ${relations.length > 10 ? `
+                        <div class="relation-item" style="color: var(--text-muted);">
+                            ... and ${relations.length - 10} more
+                        </div>
+                    ` : ''}
+                </div>
+            ` : ''}
+            <div style="margin-top: var(--space-4);">
+                <button class="btn btn-primary btn-sm" id="queryNodeBtn">
+                    Query this entity
+                </button>
+            </div>
+        `;
+
+        // Bind relation clicks
+        content.querySelectorAll('.relation-item[data-target-id]').forEach(item => {
+            item.addEventListener('click', () => {
+                const targetId = item.dataset.targetId;
+                this.network.focus(targetId, {
+                    scale: 1.5,
+                    animation: { duration: 500 },
+                });
+                this.network.selectNodes([targetId]);
+                const targetNode = this.nodesDataSet.get(targetId);
+                if (targetNode) {
+                    this.showNodeDetails(targetNode._data);
                 }
             });
+        });
+
+        // Bind query button
+        content.querySelector('#queryNodeBtn')?.addEventListener('click', () => {
+            // Switch to query tab and pre-fill
+            const queryInput = document.getElementById('queryInput');
+            if (queryInput) {
+                queryInput.value = `Tell me about "${node.label}"`;
+            }
+            // Switch tab
+            document.querySelector('.tab-btn[data-tab="query"]')?.click();
+        });
+
+        panel.classList.add('active');
+    },
+
+    hideDetailsPanel() {
+        const panel = document.getElementById('nodeDetailsPanel');
+        panel?.classList.remove('active');
+        this.selectedNode = null;
+        this.network?.unselectAll();
+    },
+
+    searchNodes(query) {
+        if (!this.nodesDataSet || !this.network) return;
+
+        if (!query || query.trim() === '') {
+            // Reset all nodes
+            this.nodesDataSet.forEach(node => {
+                this.nodesDataSet.update({
+                    id: node.id,
+                    opacity: 1,
+                    font: { ...node.font, color: 'var(--text-primary)' },
+                });
+            });
+            this.network.unselectAll();
+            return;
         }
-    });
 
-    // 稳定完成
-    network.on('stabilizationIterationsDone', function() {
-        network.setOptions({ physics: false });
-    });
-}
+        const queryLower = query.toLowerCase();
+        const matchingIds = [];
 
-/**
- * 创建节点工具提示
- */
-function createNodeTooltip(node) {
-    return `
-        <div style="max-width: 300px;">
-            <strong>${node.label}</strong><br>
-            <em>类型: ${node.type}</em><br>
-            ${node.description ? `<div style="margin-top: 5px;">${node.description.substring(0, 100)}...</div>` : ''}
-        </div>
-    `;
-}
+        this.nodesDataSet.forEach(node => {
+            const matches = node.label.toLowerCase().includes(queryLower) ||
+                (node._data?.description || '').toLowerCase().includes(queryLower);
 
-/**
- * 显示节点详情
- */
-function showNodeDetails(node) {
-    const details = `
-        <div class="mb-2"><strong>标签:</strong> ${node.label}</div>
-        <div class="mb-2"><strong>类型:</strong> <span class="badge" style="background-color: ${node.color}">${node.type}</span></div>
-        ${node.description ? `
-            <div class="mb-2">
-                <strong>描述:</strong>
-                <p class="mt-1">${node.description}</p>
-            </div>
-        ` : ''}
-        <div class="mt-3">
-            <button class="btn btn-sm btn-primary" onclick="searchRelatedNodes('${node.id}')">
-                查看相关节点
-            </button>
-        </div>
-    `;
-
-    showModal('节点详情', details);
-}
-
-/**
- * 搜索相关节点
- */
-function searchRelatedNodes(nodeId) {
-    if (!network) return;
-
-    // 获取连接的节点
-    const connectedNodes = network.getConnectedNodes(nodeId);
-
-    // 高亮显示
-    network.selectNodes([nodeId, ...connectedNodes]);
-
-    // 聚焦到节点
-    network.focus(nodeId, {
-        scale: 1.2,
-        animation: {
-            duration: 1000,
-            easingFunction: 'easeInOutQuad'
-        }
-    });
-
-    // 关闭模态框
-    const modal = bootstrap.Modal.getInstance(document.getElementById('nodeModal'));
-    if (modal) {
-        modal.hide();
-    }
-}
-
-/**
- * 重置图谱视图
- */
-function resetGraph() {
-    if (network) {
-        network.fit({
-            animation: {
-                duration: 1000,
-                easingFunction: 'easeInOutQuad'
+            if (matches) {
+                matchingIds.push(node.id);
+                this.nodesDataSet.update({
+                    id: node.id,
+                    opacity: 1,
+                });
+            } else {
+                this.nodesDataSet.update({
+                    id: node.id,
+                    opacity: 0.2,
+                });
             }
         });
 
-        // 取消选择
-        network.unselectAll();
+        if (matchingIds.length > 0) {
+            this.network.selectNodes(matchingIds);
 
-        // 重新启用物理引擎
-        network.setOptions({ physics: true });
+            // Focus on first match
+            this.network.focus(matchingIds[0], {
+                scale: 1.2,
+                animation: { duration: 500 },
+            });
+        }
+    },
+
+    resetView() {
+        if (!this.network) return;
+
+        // Reset node opacity
+        this.nodesDataSet?.forEach(node => {
+            this.nodesDataSet.update({
+                id: node.id,
+                opacity: 1,
+            });
+        });
+
+        // Clear search
+        const searchInput = document.getElementById('graphSearch');
+        if (searchInput) searchInput.value = '';
+
+        // Fit view
+        this.network.fit({
+            animation: {
+                duration: 500,
+                easingFunction: 'easeInOutQuad',
+            },
+        });
+
+        this.network.unselectAll();
+        this.hideDetailsPanel();
+
+        // Re-enable physics briefly
+        this.network.setOptions({ physics: true });
         setTimeout(() => {
-            network.setOptions({ physics: false });
+            this.network.setOptions({ physics: false });
         }, 2000);
-    }
-}
+    },
 
-/**
- * 更新图谱统计
- */
-function updateGraphStats(stats) {
-    const statsDiv = document.getElementById('graphStats');
+    toggleFullscreen() {
+        const graphPanel = document.getElementById('panel-graph');
+        if (!graphPanel) return;
 
-    if (stats) {
-        statsDiv.innerHTML = `
-            <span><strong>节点:</strong> ${stats.total_nodes}</span>
-            <span class="ms-3"><strong>边:</strong> ${stats.total_edges}</span>
+        this.isFullscreen = !this.isFullscreen;
+
+        if (this.isFullscreen) {
+            graphPanel.classList.add('fullscreen');
+            document.body.style.overflow = 'hidden';
+        } else {
+            graphPanel.classList.remove('fullscreen');
+            document.body.style.overflow = '';
+        }
+
+        // Resize network
+        setTimeout(() => {
+            this.network?.fit();
+        }, 100);
+    },
+
+    updateStats(stats) {
+        if (!stats) return;
+
+        document.getElementById('entityCount').textContent = stats.total_nodes || 0;
+        document.getElementById('relationCount').textContent = stats.total_edges || 0;
+
+        // Get doc count from document manager
+        if (window.DocumentManager) {
+            document.getElementById('docCount').textContent = DocumentManager.documents.length;
+        }
+    },
+
+    updateDocumentFilter() {
+        const select = document.getElementById('graphDocFilter');
+        if (!select) return;
+
+        // Keep first option
+        while (select.options.length > 1) {
+            select.remove(1);
+        }
+
+        // Add documents
+        if (window.DocumentManager) {
+            const docs = DocumentManager.getDocumentsForSelect();
+            docs.forEach(doc => {
+                const option = document.createElement('option');
+                option.value = doc.id;
+                option.textContent = truncateText(doc.name, 25);
+                select.appendChild(option);
+            });
+        }
+    },
+
+    getNodeColor(type) {
+        const typeUpper = (type || '').toUpperCase();
+
+        const colorMap = {
+            PERSON: '#f472b6',
+            ORGANIZATION: '#60a5fa',
+            ORG: '#60a5fa',
+            LOCATION: '#34d399',
+            LOC: '#34d399',
+            CONCEPT: '#fbbf24',
+            TECHNOLOGY: '#a78bfa',
+            TECH: '#a78bfa',
+            EVENT: '#fb923c',
+            DATE: '#94a3b8',
+            TIME: '#94a3b8',
+        };
+
+        return colorMap[typeUpper] || '#94a3b8';
+    },
+
+    truncateLabel(label, maxLength = 20) {
+        if (!label) return '';
+        if (label.length <= maxLength) return label;
+        return label.substring(0, maxLength - 1) + '…';
+    },
+
+    createTooltip(node) {
+        return `
+            <div style="max-width: 250px; font-family: var(--font-body);">
+                <strong>${escapeHtml(node.label)}</strong>
+                ${node.type ? `<br><em style="color: #888;">${node.type}</em>` : ''}
+                ${node.description ? `<br><span style="font-size: 12px;">${truncateText(node.description, 100)}</span>` : ''}
+            </div>
         `;
     }
-}
-
-/**
- * 按类型筛选节点
- */
-function filterNodesByType(type) {
-    if (!nodesDataSet || !network) return;
-
-    const allNodes = nodesDataSet.get();
-
-    if (type === 'all') {
-        // 显示所有节点
-        allNodes.forEach(node => {
-            nodesDataSet.update({ id: node.id, hidden: false });
-        });
-    } else {
-        // 筛选特定类型
-        allNodes.forEach(node => {
-            const shouldShow = node.data.type === type;
-            nodesDataSet.update({ id: node.id, hidden: !shouldShow });
-        });
-    }
-
-    network.fit();
-}
-
-/**
- * 搜索节点
- */
-function searchNodes(query) {
-    if (!nodesDataSet || !network || !query) {
-        resetGraph();
-        return;
-    }
-
-    const allNodes = nodesDataSet.get();
-    const matchingNodes = allNodes.filter(node =>
-        node.label.toLowerCase().includes(query.toLowerCase()) ||
-        (node.data.description && node.data.description.toLowerCase().includes(query.toLowerCase()))
-    );
-
-    if (matchingNodes.length > 0) {
-        const nodeIds = matchingNodes.map(n => n.id);
-        network.selectNodes(nodeIds);
-
-        // 聚焦到第一个匹配节点
-        network.focus(nodeIds[0], {
-            scale: 1.5,
-            animation: {
-                duration: 1000,
-                easingFunction: 'easeInOutQuad'
-            }
-        });
-    } else {
-        showError('未找到匹配的节点');
-    }
-}
+};

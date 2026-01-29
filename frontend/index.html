@@ -1,147 +1,536 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>知识图谱 RAG 系统</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="/static/assets/css/styles.css" rel="stylesheet">
+    <title>Neural RAG - Knowledge Graph System</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <!-- Styles -->
+    <link href="/static/assets/css/theme.css" rel="stylesheet">
+    <link href="/static/assets/css/components.css" rel="stylesheet">
+    <link href="/static/assets/css/layout.css" rel="stylesheet">
+    <link href="/static/assets/css/animations.css" rel="stylesheet">
 </head>
 <body>
-    <nav class="navbar navbar-dark bg-dark">
-        <div class="container-fluid">
-            <span class="navbar-brand mb-0 h1">📚 知识图谱 RAG 系统</span>
-            <span class="navbar-text text-light" id="systemStatus">
-                <span class="badge bg-success">运行中</span>
-            </span>
-        </div>
-    </nav>
+    <!-- Ambient Background -->
+    <div class="ambient-bg">
+        <div class="gradient-orb orb-1"></div>
+        <div class="gradient-orb orb-2"></div>
+        <div class="grid-overlay"></div>
+    </div>
 
-    <div class="container-fluid mt-4">
-        <div class="row">
-            <!-- 左侧：文档上传 -->
-            <div class="col-md-3">
-                <div class="card shadow-sm">
-                    <div class="card-header bg-primary text-white">
-                        <h5 class="mb-0">📄 文档上传</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="mb-3">
-                            <label for="fileInput" class="form-label">选择文件</label>
-                            <input
-                                type="file"
-                                id="fileInput"
-                                class="form-control"
-                                accept=".pdf,.jpg,.jpeg,.png,.bmp,.doc,.docx,.ppt,.pptx,.txt,.md"
-                            >
-                            <div class="form-text">
-                                支持: PDF, 图片, Office, 文本
-                            </div>
-                        </div>
-                        <button onclick="uploadFile()" class="btn btn-primary w-100">
-                            <span id="uploadBtnText">上传文档</span>
-                            <span id="uploadSpinner" class="spinner-border spinner-border-sm d-none" role="status"></span>
-                        </button>
-
-                        <hr class="my-3">
-
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <h6 class="mb-0">文档列表</h6>
-                            <button onclick="refreshDocumentList()" class="btn btn-sm btn-outline-secondary">
-                                🔄
-                            </button>
-                        </div>
-                        <div id="documentList" class="list-group" style="max-height: 500px; overflow-y: auto;">
-                            <div class="text-center text-muted py-3">
-                                <small>暂无文档</small>
-                            </div>
-                        </div>
-                    </div>
+    <!-- Main Container -->
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-brand">
+                <div class="brand-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M12 2v4m0 12v4M2 12h4m12 0h4"/>
+                        <path d="M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/>
+                    </svg>
+                </div>
+                <div class="brand-text">
+                    <span class="brand-name">Neural RAG</span>
+                    <span class="brand-tagline">Knowledge Graph System</span>
                 </div>
             </div>
 
-            <!-- 中间：知识查询 -->
-            <div class="col-md-4">
-                <div class="card shadow-sm">
-                    <div class="card-header bg-success text-white">
-                        <h5 class="mb-0">💬 知识查询</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="mb-3">
-                            <label for="queryInput" class="form-label">输入问题</label>
-                            <textarea
-                                id="queryInput"
-                                class="form-control"
-                                rows="3"
-                                placeholder="例如: 什么是机器学习？"
-                            ></textarea>
-                        </div>
-
-                        <div class="mb-3">
-                            <label for="modeSelect" class="form-label">查询模式</label>
-                            <select id="modeSelect" class="form-select">
-                                <option value="mix" selected>混合模式 (推荐)</option>
-                                <option value="local">本地模式</option>
-                                <option value="global">全局模式</option>
-                                <option value="hybrid">混合检索</option>
-                                <option value="naive">简单检索</option>
-                            </select>
-                        </div>
-
-                        <button onclick="executeQuery()" class="btn btn-success w-100 mb-3">
-                            <span id="queryBtnText">查询</span>
-                            <span id="querySpinner" class="spinner-border spinner-border-sm d-none" role="status"></span>
-                        </button>
-
-                        <div id="queryResult"></div>
-                    </div>
-                </div>
+            <div class="header-actions">
+                <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+                    <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                    </svg>
+                    <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="5"/>
+                        <path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                    </svg>
+                </button>
             </div>
+        </header>
 
-            <!-- 右侧：知识图谱 -->
-            <div class="col-md-5">
-                <div class="card shadow-sm">
-                    <div class="card-header bg-info text-white">
-                        <h5 class="mb-0">🕸️ 知识图谱</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="mb-2">
-                            <button onclick="loadGraph()" class="btn btn-sm btn-outline-primary me-2">
-                                刷新图谱
-                            </button>
-                            <button onclick="resetGraph()" class="btn btn-sm btn-outline-secondary">
-                                重置视图
-                            </button>
-                            <span id="graphSpinner" class="spinner-border spinner-border-sm d-none ms-2" role="status"></span>
+        <!-- Tab Navigation -->
+        <nav class="tab-nav">
+            <button class="tab-btn active" data-tab="documents">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                    <polyline points="10 9 9 9 8 9"/>
+                </svg>
+                <span>Documents</span>
+            </button>
+            <button class="tab-btn" data-tab="query">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+                <span>Q&A</span>
+            </button>
+            <button class="tab-btn" data-tab="graph">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="18" cy="5" r="3"/>
+                    <circle cx="6" cy="12" r="3"/>
+                    <circle cx="18" cy="19" r="3"/>
+                    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+                    <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                </svg>
+                <span>Graph</span>
+            </button>
+            <button class="tab-btn" data-tab="settings">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                </svg>
+                <span>Settings</span>
+            </button>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Documents Tab -->
+            <section class="tab-panel active" id="panel-documents">
+                <div class="panel-grid documents-layout">
+                    <!-- Upload Zone -->
+                    <div class="upload-zone glass-card" id="uploadZone">
+                        <div class="upload-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                <polyline points="17 8 12 3 7 8"/>
+                                <line x1="12" y1="3" x2="12" y2="15"/>
+                            </svg>
                         </div>
-                        <div id="graphContainer" style="height: 600px; border: 1px solid #ddd; border-radius: 4px;"></div>
-                        <div id="graphStats" class="mt-2 text-muted small"></div>
+                        <h3>Drop files here</h3>
+                        <p>or click to browse</p>
+                        <div class="upload-formats">PDF, Word, Excel, PPT, Images</div>
+                        <input type="file" id="fileInput" accept=".pdf,.jpg,.jpeg,.png,.bmp,.doc,.docx,.ppt,.pptx,.txt,.md" multiple hidden>
+                        <button class="btn btn-primary btn-glow" id="browseBtn">
+                            <span>Choose Files</span>
+                        </button>
+                    </div>
+
+                    <!-- Document List -->
+                    <div class="document-list glass-card">
+                        <div class="list-header">
+                            <h3>Document Library</h3>
+                            <div class="list-actions">
+                                <button class="btn btn-icon" id="refreshDocsBtn" title="Refresh">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polyline points="23 4 23 10 17 10"/>
+                                        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                                    </svg>
+                                </button>
+                                <button class="btn btn-danger btn-icon" id="deleteSelectedBtn" title="Delete selected" disabled>
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polyline points="3 6 5 6 21 6"/>
+                                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                                    </svg>
+                                    <span class="delete-count"></span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="list-controls">
+                            <label class="checkbox-wrapper select-all">
+                                <input type="checkbox" id="selectAllDocs">
+                                <span class="checkmark"></span>
+                                <span>Select all</span>
+                            </label>
+                        </div>
+
+                        <div class="document-items" id="documentList">
+                            <div class="empty-state">
+                                <div class="empty-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                        <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
+                                        <polyline points="13 2 13 9 20 9"/>
+                                    </svg>
+                                </div>
+                                <p>No documents yet</p>
+                                <span>Upload your first document to get started</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
+            </section>
+
+            <!-- Q&A Tab -->
+            <section class="tab-panel" id="panel-query">
+                <div class="query-layout">
+                    <!-- Query Settings -->
+                    <div class="query-settings glass-card">
+                        <div class="setting-group">
+                            <label>Query Mode</label>
+                            <div class="select-wrapper">
+                                <select id="modeSelect">
+                                    <option value="mix" selected>Mix (Recommended)</option>
+                                    <option value="local">Local</option>
+                                    <option value="global">Global</option>
+                                    <option value="hybrid">Hybrid</option>
+                                    <option value="naive">Naive</option>
+                                </select>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="6 9 12 15 18 9"/>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="setting-group">
+                            <label>Document Scope</label>
+                            <div class="select-wrapper">
+                                <select id="docScopeSelect">
+                                    <option value="all" selected>All Documents</option>
+                                </select>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="6 9 12 15 18 9"/>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Chat Container -->
+                    <div class="chat-container glass-card">
+                        <div class="chat-messages" id="chatMessages">
+                            <div class="welcome-message">
+                                <div class="welcome-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                        <circle cx="12" cy="12" r="10"/>
+                                        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                                        <line x1="12" y1="17" x2="12.01" y2="17"/>
+                                    </svg>
+                                </div>
+                                <h3>Ask anything about your documents</h3>
+                                <p>Your questions will be answered using the knowledge extracted from uploaded documents.</p>
+                            </div>
+                        </div>
+
+                        <div class="chat-input-container">
+                            <div class="chat-input-wrapper">
+                                <textarea
+                                    id="queryInput"
+                                    placeholder="Ask a question... (Ctrl+Enter to send)"
+                                    rows="1"
+                                ></textarea>
+                                <button class="btn btn-primary btn-send" id="sendQueryBtn">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <line x1="22" y1="2" x2="11" y2="13"/>
+                                        <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                                    </svg>
+                                </button>
+                            </div>
+                            <div class="input-hint">
+                                <span>Press <kbd>Ctrl</kbd> + <kbd>Enter</kbd> to send</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Graph Tab -->
+            <section class="tab-panel" id="panel-graph">
+                <div class="graph-layout">
+                    <!-- Graph Toolbar -->
+                    <div class="graph-toolbar glass-card">
+                        <div class="search-box">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="11" cy="11" r="8"/>
+                                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                            </svg>
+                            <input type="text" id="graphSearch" placeholder="Search entities...">
+                        </div>
+
+                        <div class="toolbar-actions">
+                            <div class="select-wrapper compact">
+                                <select id="graphDocFilter">
+                                    <option value="all">All Documents</option>
+                                </select>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="6 9 12 15 18 9"/>
+                                </svg>
+                            </div>
+
+                            <div class="zoom-controls">
+                                <button class="btn btn-icon" id="zoomInBtn" title="Zoom in">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <circle cx="11" cy="11" r="8"/>
+                                        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                                        <line x1="11" y1="8" x2="11" y2="14"/>
+                                        <line x1="8" y1="11" x2="14" y2="11"/>
+                                    </svg>
+                                </button>
+                                <button class="btn btn-icon" id="zoomOutBtn" title="Zoom out">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <circle cx="11" cy="11" r="8"/>
+                                        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                                        <line x1="8" y1="11" x2="14" y2="11"/>
+                                    </svg>
+                                </button>
+                                <button class="btn btn-icon" id="resetViewBtn" title="Reset view">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polyline points="23 4 23 10 17 10"/>
+                                        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                                    </svg>
+                                </button>
+                            </div>
+
+                            <button class="btn btn-icon btn-fullscreen" id="fullscreenBtn" title="Fullscreen">
+                                <svg class="icon-expand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="15 3 21 3 21 9"/>
+                                    <polyline points="9 21 3 21 3 15"/>
+                                    <line x1="21" y1="3" x2="14" y2="10"/>
+                                    <line x1="3" y1="21" x2="10" y2="14"/>
+                                </svg>
+                                <svg class="icon-compress" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="4 14 10 14 10 20"/>
+                                    <polyline points="20 10 14 10 14 4"/>
+                                    <line x1="14" y1="10" x2="21" y2="3"/>
+                                    <line x1="3" y1="21" x2="10" y2="14"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Graph Canvas -->
+                    <div class="graph-canvas-wrapper">
+                        <div class="graph-canvas" id="graphContainer">
+                            <div class="graph-loading" id="graphLoading">
+                                <div class="loading-spinner"></div>
+                                <span>Loading graph...</span>
+                            </div>
+                        </div>
+
+                        <!-- Node Details Panel -->
+                        <div class="node-details-panel glass-card" id="nodeDetailsPanel">
+                            <button class="panel-close" id="closeDetailsBtn">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="18" y1="6" x2="6" y2="18"/>
+                                    <line x1="6" y1="6" x2="18" y2="18"/>
+                                </svg>
+                            </button>
+                            <div class="panel-content" id="nodeDetailsContent">
+                                <!-- Dynamic content -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Graph Stats -->
+                    <div class="graph-stats" id="graphStats">
+                        <div class="stat-item">
+                            <span class="stat-value" id="entityCount">0</span>
+                            <span class="stat-label">Entities</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-value" id="relationCount">0</span>
+                            <span class="stat-label">Relations</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-value" id="docCount">0</span>
+                            <span class="stat-label">Documents</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Settings Tab -->
+            <section class="tab-panel" id="panel-settings">
+                <div class="settings-layout">
+                    <div class="settings-section glass-card">
+                        <h3>Appearance</h3>
+                        <div class="setting-row">
+                            <div class="setting-info">
+                                <label>Theme</label>
+                                <p>Choose your preferred color scheme</p>
+                            </div>
+                            <div class="theme-switcher">
+                                <button class="theme-option" data-theme="dark">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                                    </svg>
+                                    <span>Dark</span>
+                                </button>
+                                <button class="theme-option" data-theme="light">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <circle cx="12" cy="12" r="5"/>
+                                        <path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                                    </svg>
+                                    <span>Light</span>
+                                </button>
+                                <button class="theme-option" data-theme="system">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                                        <line x1="8" y1="21" x2="16" y2="21"/>
+                                        <line x1="12" y1="17" x2="12" y2="21"/>
+                                    </svg>
+                                    <span>System</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-section glass-card">
+                        <h3>Query Defaults</h3>
+                        <div class="setting-row">
+                            <div class="setting-info">
+                                <label>Default Query Mode</label>
+                                <p>Set the default mode for new queries</p>
+                            </div>
+                            <div class="select-wrapper">
+                                <select id="defaultModeSelect">
+                                    <option value="mix" selected>Mix (Recommended)</option>
+                                    <option value="local">Local</option>
+                                    <option value="global">Global</option>
+                                    <option value="hybrid">Hybrid</option>
+                                    <option value="naive">Naive</option>
+                                </select>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="6 9 12 15 18 9"/>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="setting-row">
+                            <div class="setting-info">
+                                <label>Streaming Output</label>
+                                <p>Show answers as they're generated</p>
+                            </div>
+                            <label class="toggle">
+                                <input type="checkbox" id="streamingToggle" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="settings-section glass-card">
+                        <h3>System Information</h3>
+                        <div class="system-info" id="systemInfo">
+                            <div class="info-row">
+                                <span class="info-label">Backend Status</span>
+                                <span class="info-value status-badge" id="backendStatus">Checking...</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">LLM Provider</span>
+                                <span class="info-value" id="llmProvider">-</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">Embedding Model</span>
+                                <span class="info-value" id="embeddingModel">-</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">Vector Database</span>
+                                <span class="info-value" id="vectorDbStatus">-</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">Graph Database</span>
+                                <span class="info-value" id="graphDbStatus">-</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-section glass-card danger-zone">
+                        <h3>Data Management</h3>
+                        <div class="danger-actions">
+                            <button class="btn btn-outline-danger" id="clearAllDocsBtn">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="3 6 5 6 21 6"/>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                                </svg>
+                                Clear All Documents
+                            </button>
+                            <button class="btn btn-outline-danger" id="resetGraphBtn">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="23 4 23 10 17 10"/>
+                                    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                                </svg>
+                                Reset Knowledge Graph
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Status Bar -->
+        <footer class="status-bar">
+            <div class="status-left">
+                <span class="status-indicator" id="connectionStatus">
+                    <span class="indicator-dot"></span>
+                    <span>Connected</span>
+                </span>
+            </div>
+            <div class="status-right">
+                <span class="status-item">
+                    <span class="status-label">Qdrant</span>
+                    <span class="status-value" id="qdrantStatus">-</span>
+                </span>
+                <span class="status-item">
+                    <span class="status-label">Neo4j</span>
+                    <span class="status-value" id="neo4jStatus">-</span>
+                </span>
+                <span class="status-item">
+                    <span class="status-label">Documents</span>
+                    <span class="status-value" id="totalDocsCount">0</span>
+                </span>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Confirmation Modal -->
+    <div class="modal-overlay" id="confirmModal">
+        <div class="modal-dialog glass-card">
+            <div class="modal-header">
+                <h3 id="confirmModalTitle">Confirm</h3>
+                <button class="modal-close" id="confirmModalClose">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body" id="confirmModalBody">
+                Are you sure?
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" id="confirmModalCancel">Cancel</button>
+                <button class="btn btn-danger" id="confirmModalConfirm">Confirm</button>
             </div>
         </div>
     </div>
 
-    <!-- 节点详情模态框 -->
-    <div class="modal fade" id="nodeModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="nodeModalTitle">节点详情</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body" id="nodeModalBody">
-                </div>
+    <!-- Document Details Modal -->
+    <div class="modal-overlay" id="docModal">
+        <div class="modal-dialog glass-card modal-lg">
+            <div class="modal-header">
+                <h3 id="docModalTitle">Document Details</h3>
+                <button class="modal-close" id="docModalClose">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body" id="docModalBody">
+                <!-- Dynamic content -->
             </div>
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/vis-network@9.1.2/dist/vis-network.min.js"></script>
     <script src="/static/assets/js/config.js"></script>
-    <script src="/static/assets/js/upload.js"></script>
+    <script src="/static/assets/js/theme.js"></script>
+    <script src="/static/assets/js/utils.js"></script>
+    <script src="/static/assets/js/api.js"></script>
+    <script src="/static/assets/js/documents.js"></script>
     <script src="/static/assets/js/query.js"></script>
     <script src="/static/assets/js/graph.js"></script>
+    <script src="/static/assets/js/settings.js"></script>
     <script src="/static/assets/js/app.js"></script>
 </body>
 </html>

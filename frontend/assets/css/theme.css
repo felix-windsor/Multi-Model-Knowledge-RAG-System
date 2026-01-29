@@ -1,0 +1,379 @@
+/**
+ * Neural RAG - Theme System
+ * Cyberpunk-inspired dark theme with light mode support
+ */
+
+/* ============================================
+   CSS Custom Properties (Design Tokens)
+   ============================================ */
+
+:root {
+    /* Typography */
+    --font-display: 'Syne', sans-serif;
+    --font-body: 'DM Sans', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+
+    /* Font Sizes */
+    --text-xs: 0.75rem;
+    --text-sm: 0.875rem;
+    --text-base: 1rem;
+    --text-lg: 1.125rem;
+    --text-xl: 1.25rem;
+    --text-2xl: 1.5rem;
+    --text-3xl: 2rem;
+
+    /* Spacing */
+    --space-1: 0.25rem;
+    --space-2: 0.5rem;
+    --space-3: 0.75rem;
+    --space-4: 1rem;
+    --space-5: 1.25rem;
+    --space-6: 1.5rem;
+    --space-8: 2rem;
+    --space-10: 2.5rem;
+    --space-12: 3rem;
+
+    /* Border Radius */
+    --radius-sm: 0.375rem;
+    --radius-md: 0.5rem;
+    --radius-lg: 0.75rem;
+    --radius-xl: 1rem;
+    --radius-2xl: 1.5rem;
+    --radius-full: 9999px;
+
+    /* Transitions */
+    --transition-fast: 0.15s ease;
+    --transition-base: 0.2s ease;
+    --transition-slow: 0.3s ease;
+    --transition-slower: 0.5s ease;
+
+    /* Z-Index Scale */
+    --z-dropdown: 100;
+    --z-modal: 200;
+    --z-toast: 300;
+    --z-tooltip: 400;
+}
+
+/* ============================================
+   Dark Theme (Default)
+   ============================================ */
+
+:root[data-theme="dark"] {
+    /* Background Colors */
+    --bg-base: #06080d;
+    --bg-primary: #0a0e17;
+    --bg-secondary: #111827;
+    --bg-tertiary: #1a2233;
+    --bg-elevated: #1f2937;
+
+    /* Surface Colors (Glass Cards) */
+    --surface-primary: rgba(17, 24, 39, 0.7);
+    --surface-secondary: rgba(26, 34, 51, 0.6);
+    --surface-border: rgba(56, 189, 248, 0.1);
+    --surface-border-hover: rgba(56, 189, 248, 0.25);
+
+    /* Text Colors */
+    --text-primary: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --text-tertiary: #64748b;
+    --text-muted: #475569;
+
+    /* Accent Colors - Electric Cyan */
+    --accent-primary: #00d4ff;
+    --accent-primary-rgb: 0, 212, 255;
+    --accent-hover: #38bdf8;
+    --accent-muted: rgba(0, 212, 255, 0.15);
+    --accent-glow: rgba(0, 212, 255, 0.4);
+
+    /* Secondary Accent - Neon Purple */
+    --accent-secondary: #a855f7;
+    --accent-secondary-rgb: 168, 85, 247;
+    --accent-secondary-muted: rgba(168, 85, 247, 0.15);
+
+    /* Status Colors */
+    --success: #22c55e;
+    --success-muted: rgba(34, 197, 94, 0.15);
+    --warning: #f59e0b;
+    --warning-muted: rgba(245, 158, 11, 0.15);
+    --error: #ef4444;
+    --error-muted: rgba(239, 68, 68, 0.15);
+    --info: #3b82f6;
+    --info-muted: rgba(59, 130, 246, 0.15);
+
+    /* Graph Colors */
+    --graph-bg: #0a0e17;
+    --graph-node-person: #f472b6;
+    --graph-node-org: #60a5fa;
+    --graph-node-location: #34d399;
+    --graph-node-concept: #fbbf24;
+    --graph-node-tech: #a78bfa;
+    --graph-node-default: #94a3b8;
+    --graph-edge: rgba(148, 163, 184, 0.4);
+    --graph-edge-hover: #00d4ff;
+
+    /* Ambient Background */
+    --orb-1: radial-gradient(circle at 20% 80%, rgba(0, 212, 255, 0.15) 0%, transparent 50%);
+    --orb-2: radial-gradient(circle at 80% 20%, rgba(168, 85, 247, 0.12) 0%, transparent 50%);
+    --grid-color: rgba(56, 189, 248, 0.03);
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.5);
+    --shadow-glow: 0 0 20px rgba(0, 212, 255, 0.3);
+    --shadow-glow-intense: 0 0 40px rgba(0, 212, 255, 0.5);
+
+    /* Scrollbar */
+    --scrollbar-track: #111827;
+    --scrollbar-thumb: #374151;
+    --scrollbar-thumb-hover: #4b5563;
+}
+
+/* ============================================
+   Light Theme
+   ============================================ */
+
+:root[data-theme="light"] {
+    /* Background Colors */
+    --bg-base: #f8fafc;
+    --bg-primary: #ffffff;
+    --bg-secondary: #f1f5f9;
+    --bg-tertiary: #e2e8f0;
+    --bg-elevated: #ffffff;
+
+    /* Surface Colors */
+    --surface-primary: rgba(255, 255, 255, 0.9);
+    --surface-secondary: rgba(241, 245, 249, 0.8);
+    --surface-border: rgba(15, 23, 42, 0.1);
+    --surface-border-hover: rgba(15, 23, 42, 0.2);
+
+    /* Text Colors */
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-tertiary: #64748b;
+    --text-muted: #94a3b8;
+
+    /* Accent Colors - Deep Blue */
+    --accent-primary: #0284c7;
+    --accent-primary-rgb: 2, 132, 199;
+    --accent-hover: #0369a1;
+    --accent-muted: rgba(2, 132, 199, 0.1);
+    --accent-glow: rgba(2, 132, 199, 0.2);
+
+    /* Secondary Accent - Violet */
+    --accent-secondary: #7c3aed;
+    --accent-secondary-rgb: 124, 58, 237;
+    --accent-secondary-muted: rgba(124, 58, 237, 0.1);
+
+    /* Status Colors */
+    --success: #16a34a;
+    --success-muted: rgba(22, 163, 74, 0.1);
+    --warning: #d97706;
+    --warning-muted: rgba(217, 119, 6, 0.1);
+    --error: #dc2626;
+    --error-muted: rgba(220, 38, 38, 0.1);
+    --info: #2563eb;
+    --info-muted: rgba(37, 99, 235, 0.1);
+
+    /* Graph Colors */
+    --graph-bg: #ffffff;
+    --graph-node-person: #ec4899;
+    --graph-node-org: #3b82f6;
+    --graph-node-location: #10b981;
+    --graph-node-concept: #f59e0b;
+    --graph-node-tech: #8b5cf6;
+    --graph-node-default: #6b7280;
+    --graph-edge: rgba(107, 114, 128, 0.3);
+    --graph-edge-hover: #0284c7;
+
+    /* Ambient Background */
+    --orb-1: radial-gradient(circle at 20% 80%, rgba(2, 132, 199, 0.08) 0%, transparent 50%);
+    --orb-2: radial-gradient(circle at 80% 20%, rgba(124, 58, 237, 0.06) 0%, transparent 50%);
+    --grid-color: rgba(15, 23, 42, 0.02);
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07);
+    --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+    --shadow-glow: 0 0 20px rgba(2, 132, 199, 0.15);
+    --shadow-glow-intense: 0 0 40px rgba(2, 132, 199, 0.25);
+
+    /* Scrollbar */
+    --scrollbar-track: #f1f5f9;
+    --scrollbar-thumb: #cbd5e1;
+    --scrollbar-thumb-hover: #94a3b8;
+}
+
+/* ============================================
+   Base Reset & Typography
+   ============================================ */
+
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html {
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+    font-family: var(--font-body);
+    font-size: var(--text-base);
+    line-height: 1.6;
+    color: var(--text-primary);
+    background-color: var(--bg-base);
+    min-height: 100vh;
+    overflow-x: hidden;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    line-height: 1.3;
+    letter-spacing: -0.02em;
+}
+
+h1 { font-size: var(--text-3xl); }
+h2 { font-size: var(--text-2xl); }
+h3 { font-size: var(--text-xl); }
+h4 { font-size: var(--text-lg); }
+
+code, pre, kbd {
+    font-family: var(--font-mono);
+}
+
+kbd {
+    display: inline-block;
+    padding: 0.125rem 0.375rem;
+    font-size: var(--text-xs);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+}
+
+a {
+    color: var(--accent-primary);
+    text-decoration: none;
+    transition: color var(--transition-fast);
+}
+
+a:hover {
+    color: var(--accent-hover);
+}
+
+/* ============================================
+   Selection & Focus
+   ============================================ */
+
+::selection {
+    background: var(--accent-muted);
+    color: var(--accent-primary);
+}
+
+:focus {
+    outline: none;
+}
+
+:focus-visible {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 2px;
+}
+
+/* ============================================
+   Scrollbar Styling
+   ============================================ */
+
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+    border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: var(--radius-full);
+    transition: background var(--transition-fast);
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+}
+
+/* Firefox scrollbar */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+/* ============================================
+   Ambient Background
+   ============================================ */
+
+.ambient-bg {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    overflow: hidden;
+}
+
+.gradient-orb {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    opacity: 1;
+}
+
+.orb-1 {
+    background: var(--orb-1);
+    animation: float 20s ease-in-out infinite;
+}
+
+.orb-2 {
+    background: var(--orb-2);
+    animation: float 25s ease-in-out infinite reverse;
+}
+
+.grid-overlay {
+    position: absolute;
+    inset: 0;
+    background-image:
+        linear-gradient(var(--grid-color) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+    background-size: 50px 50px;
+    mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 40%, transparent 100%);
+}
+
+@keyframes float {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    25% { transform: translate(2%, 2%) scale(1.02); }
+    50% { transform: translate(-1%, 3%) scale(0.98); }
+    75% { transform: translate(1%, -2%) scale(1.01); }
+}
+
+/* ============================================
+   Theme Transition
+   ============================================ */
+
+body,
+.glass-card,
+.btn,
+.tab-btn,
+.app-header,
+.status-bar,
+.tab-nav {
+    transition:
+        background-color var(--transition-slow),
+        border-color var(--transition-slow),
+        color var(--transition-slow),
+        box-shadow var(--transition-slow);
+}

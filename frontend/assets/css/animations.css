@@ -1,0 +1,550 @@
+/**
+ * Neural RAG - Animations & Effects
+ * Micro-interactions, transitions, and visual effects
+ */
+
+/* ============================================
+   Page Load Animation
+   ============================================ */
+
+.app-container {
+    animation: page-load 0.6s ease-out;
+}
+
+@keyframes page-load {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+/* Staggered reveal for main elements */
+.app-header {
+    animation: slide-down 0.5s ease-out;
+}
+
+.tab-nav {
+    animation: slide-down 0.5s ease-out 0.1s backwards;
+}
+
+.main-content {
+    animation: fade-up 0.5s ease-out 0.2s backwards;
+}
+
+.status-bar {
+    animation: slide-up 0.5s ease-out 0.3s backwards;
+}
+
+@keyframes slide-down {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes slide-up {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fade-up {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ============================================
+   Button Hover Effects
+   ============================================ */
+
+.btn {
+    position: relative;
+    overflow: hidden;
+}
+
+.btn::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        to right,
+        transparent,
+        rgba(255, 255, 255, 0.1),
+        transparent
+    );
+    transform: translateX(-100%);
+    transition: transform 0.6s ease;
+}
+
+.btn:hover::after {
+    transform: translateX(100%);
+}
+
+/* Ripple effect on click */
+.btn-ripple {
+    position: absolute;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.3);
+    transform: scale(0);
+    animation: ripple 0.6s linear;
+    pointer-events: none;
+}
+
+@keyframes ripple {
+    to {
+        transform: scale(4);
+        opacity: 0;
+    }
+}
+
+/* ============================================
+   Card Hover Effects
+   ============================================ */
+
+.glass-card {
+    transition:
+        transform var(--transition-base),
+        box-shadow var(--transition-base),
+        border-color var(--transition-base);
+}
+
+.document-item {
+    transition:
+        transform var(--transition-fast),
+        background var(--transition-fast),
+        border-color var(--transition-fast);
+}
+
+.document-item:hover {
+    transform: translateX(4px);
+}
+
+.document-item:active {
+    transform: translateX(2px);
+}
+
+/* ============================================
+   Upload Zone Effects
+   ============================================ */
+
+.upload-zone {
+    position: relative;
+    overflow: hidden;
+}
+
+.upload-zone::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(
+        circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
+        var(--accent-muted) 0%,
+        transparent 50%
+    );
+    opacity: 0;
+    transition: opacity var(--transition-base);
+    pointer-events: none;
+}
+
+.upload-zone:hover::before {
+    opacity: 1;
+}
+
+.upload-zone.drag-over {
+    animation: pulse-border 1s ease-in-out infinite;
+}
+
+@keyframes pulse-border {
+    0%, 100% {
+        border-color: var(--accent-primary);
+        box-shadow: 0 0 0 0 var(--accent-glow);
+    }
+    50% {
+        border-color: var(--accent-hover);
+        box-shadow: 0 0 20px 0 var(--accent-glow);
+    }
+}
+
+.upload-icon {
+    transition: transform var(--transition-base);
+}
+
+.upload-zone:hover .upload-icon {
+    transform: translateY(-5px);
+}
+
+.upload-zone.drag-over .upload-icon {
+    animation: bounce 0.5s ease infinite;
+}
+
+@keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+}
+
+/* ============================================
+   Tab Switching Animation
+   ============================================ */
+
+.tab-btn {
+    position: relative;
+}
+
+.tab-btn::before {
+    content: '';
+    position: absolute;
+    bottom: -3px;
+    left: 50%;
+    width: 0;
+    height: 2px;
+    background: var(--accent-primary);
+    transition: all var(--transition-fast);
+    transform: translateX(-50%);
+}
+
+.tab-btn.active::before {
+    width: 30px;
+}
+
+.tab-btn:hover:not(.active)::before {
+    width: 20px;
+    background: var(--text-muted);
+}
+
+/* Tab panel transition */
+.tab-panel {
+    opacity: 0;
+    transform: translateY(10px);
+    transition:
+        opacity var(--transition-base),
+        transform var(--transition-base);
+}
+
+.tab-panel.active {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* ============================================
+   Message Animations
+   ============================================ */
+
+.message {
+    animation: message-in 0.3s ease-out;
+}
+
+@keyframes message-in {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Streaming text cursor */
+.streaming-cursor {
+    display: inline-block;
+    width: 2px;
+    height: 1.2em;
+    background: var(--accent-primary);
+    margin-left: 2px;
+    animation: blink 1s step-end infinite;
+    vertical-align: text-bottom;
+}
+
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+}
+
+/* ============================================
+   Graph Animations
+   ============================================ */
+
+/* Node hover glow */
+.graph-canvas canvas {
+    transition: filter var(--transition-base);
+}
+
+/* Details panel slide */
+.node-details-panel {
+    transition:
+        transform var(--transition-base),
+        opacity var(--transition-base);
+    opacity: 0;
+}
+
+.node-details-panel.active {
+    opacity: 1;
+}
+
+/* Fullscreen transition */
+.graph-layout {
+    transition:
+        all var(--transition-slow);
+}
+
+.fullscreen .graph-canvas-wrapper {
+    animation: expand 0.3s ease-out;
+}
+
+@keyframes expand {
+    from {
+        transform: scale(0.95);
+        opacity: 0.8;
+    }
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* ============================================
+   Toast Animations
+   ============================================ */
+
+.toast {
+    animation: toast-in 0.3s ease-out forwards;
+}
+
+.toast.removing {
+    animation: toast-out 0.3s ease-out forwards;
+}
+
+@keyframes toast-in {
+    from {
+        transform: translateX(100%) scale(0.8);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0) scale(1);
+        opacity: 1;
+    }
+}
+
+@keyframes toast-out {
+    from {
+        transform: translateX(0) scale(1);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(100%) scale(0.8);
+        opacity: 0;
+    }
+}
+
+/* ============================================
+   Modal Animations
+   ============================================ */
+
+.modal-overlay {
+    transition:
+        opacity var(--transition-base),
+        visibility var(--transition-base);
+}
+
+.modal-dialog {
+    transition:
+        transform var(--transition-base),
+        opacity var(--transition-base);
+}
+
+.modal-overlay.active .modal-dialog {
+    animation: modal-in 0.3s ease-out;
+}
+
+@keyframes modal-in {
+    from {
+        transform: translateY(-20px) scale(0.95);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+    }
+}
+
+/* ============================================
+   Status Indicator Pulse
+   ============================================ */
+
+.indicator-dot {
+    position: relative;
+}
+
+.indicator-dot::after {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    background: var(--success);
+    animation: status-pulse 2s ease-in-out infinite;
+    opacity: 0;
+}
+
+@keyframes status-pulse {
+    0%, 100% {
+        transform: scale(0.8);
+        opacity: 0;
+    }
+    50% {
+        transform: scale(1.5);
+        opacity: 0.3;
+    }
+}
+
+.status-indicator.disconnected .indicator-dot::after {
+    background: var(--error);
+}
+
+/* ============================================
+   Loading States
+   ============================================ */
+
+.loading-skeleton {
+    background: linear-gradient(
+        90deg,
+        var(--bg-secondary) 0%,
+        var(--bg-tertiary) 50%,
+        var(--bg-secondary) 100%
+    );
+    background-size: 200% 100%;
+    animation: skeleton-loading 1.5s ease-in-out infinite;
+    border-radius: var(--radius-md);
+}
+
+@keyframes skeleton-loading {
+    0% {
+        background-position: 200% 0;
+    }
+    100% {
+        background-position: -200% 0;
+    }
+}
+
+/* Document processing animation */
+.document-item.processing::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        var(--accent-primary),
+        transparent
+    );
+    animation: processing-bar 1.5s ease-in-out infinite;
+}
+
+@keyframes processing-bar {
+    0% {
+        transform: translateX(-100%);
+    }
+    100% {
+        transform: translateX(100%);
+    }
+}
+
+/* ============================================
+   Focus Animations
+   ============================================ */
+
+input:focus,
+textarea:focus,
+select:focus,
+.btn:focus-visible {
+    animation: focus-ring 0.2s ease-out;
+}
+
+@keyframes focus-ring {
+    0% {
+        box-shadow: 0 0 0 0 var(--accent-glow);
+    }
+    100% {
+        box-shadow: 0 0 0 3px var(--accent-muted);
+    }
+}
+
+/* ============================================
+   Theme Toggle Animation
+   ============================================ */
+
+.theme-toggle {
+    transition:
+        transform var(--transition-fast),
+        box-shadow var(--transition-fast);
+}
+
+.theme-toggle:active {
+    transform: scale(0.95);
+}
+
+/* Icon rotation on theme change */
+.theme-toggle svg {
+    transition:
+        transform var(--transition-base),
+        opacity var(--transition-base);
+}
+
+/* ============================================
+   Scroll Reveal (for future use)
+   ============================================ */
+
+.scroll-reveal {
+    opacity: 0;
+    transform: translateY(20px);
+    transition:
+        opacity 0.6s ease-out,
+        transform 0.6s ease-out;
+}
+
+.scroll-reveal.revealed {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* ============================================
+   Reduced Motion Support
+   ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+
+    .streaming-cursor {
+        animation: none;
+        opacity: 1;
+    }
+
+    .indicator-dot::after {
+        animation: none;
+    }
+}
