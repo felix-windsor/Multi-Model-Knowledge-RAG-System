@@ -10,9 +10,10 @@ import httpx
 ROOT_DIR = Path(__file__).parent.parent.parent.parent
 load_dotenv(ROOT_DIR / ".env", override=True)
 
-from lightrag.llm.openai import openai_complete_if_cache, openai_embed
+from lightrag.llm.openai import openai_complete_if_cache
 from lightrag.llm.ollama import ollama_model_complete
 from lightrag.utils import EmbeddingFunc
+from openai import AsyncOpenAI
 
 
 import asyncio
@@ -283,17 +284,31 @@ class ModelFactory:
             EmbeddingFunc
         """
         if provider == "openai" or provider == "qwen" or provider == "lmstudio":
-            async def openai_embed_func(texts):
-                return await openai_embed(
-                    texts,
-                    model=model,
-                    api_key=api_key,
-                    base_url=base_url
+            # Use custom implementation to avoid LightRAG's hardcoded 1536 dimension
+            _model = model
+            _api_key = api_key
+            _base_url = base_url
+            _embedding_dim = embedding_dim
+
+            async def custom_openai_embed_func(texts: list[str]) -> np.ndarray:
+                """Custom OpenAI embedding function without LightRAG's dimension validation."""
+                client = AsyncOpenAI(api_key=_api_key, base_url=_base_url)
+
+                # Call OpenAI-compatible embeddings API
+                response = await client.embeddings.create(
+                    model=_model,
+                    input=texts,
+                    dimensions=_embedding_dim if _embedding_dim else None
                 )
+
+                # Extract embeddings from response
+                embeddings = [item.embedding for item in response.data]
+                return np.array(embeddings)
+
             embedding_func = EmbeddingFunc(
                 embedding_dim=embedding_dim,
                 max_token_size=8192,
-                func=openai_embed_func
+                func=custom_openai_embed_func
             )
             return embedding_func
         elif provider == "ollama":

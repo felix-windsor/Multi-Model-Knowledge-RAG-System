@@ -63,6 +63,39 @@ class Parser:
         pass
 
     @classmethod
+    def _is_actual_error(cls, line: str) -> bool:
+        """
+        Check if a stderr line represents an actual error, not just info containing 'error'.
+
+        Filters out false positives like:
+        - TensorFlow info messages with "round-off errors"
+        - Other informational messages that happen to contain 'error'
+        """
+        line_lower = line.lower()
+
+        # Check for actual error indicators (prefixes/patterns that indicate real errors)
+        error_patterns = [
+            "error:",
+            "error ",
+            "[error]",
+            "exception:",
+            "traceback",
+            "attributeerror",
+            "valueerror",
+            "typeerror",
+            "keyerror",
+            "runtimeerror",
+            "filenotfounderror",
+        ]
+
+        # If line contains actual error pattern, it's a real error
+        for pattern in error_patterns:
+            if pattern in line_lower:
+                return True
+
+        return False
+
+    @classmethod
     def convert_office_to_pdf(
         cls, doc_path: Union[str, Path], output_dir: Optional[str] = None
     ) -> Path:
@@ -722,9 +755,11 @@ class MineruParser(Parser):
                     while True:
                         prefix, line = stderr_queue.get_nowait()
                         # Log mineru errors with WARNING level
-                        if "warning" in line.lower():
+                        # Skip TensorFlow/oneDNN info messages (they go to stderr but aren't errors)
+                        is_tf_info = "tensorflow" in line.lower() or "onednn" in line.lower()
+                        if "warning" in line.lower() and not is_tf_info:
                             cls.logger.warning(f"[MinerU] {line}")
-                        elif "error" in line.lower():
+                        elif cls._is_actual_error(line) and not is_tf_info:
                             cls.logger.error(f"[MinerU] {line}")
                             error_message = line.split("\n")[0]
                             error_lines.append(error_message)
@@ -750,9 +785,11 @@ class MineruParser(Parser):
             try:
                 while True:
                     prefix, line = stderr_queue.get_nowait()
-                    if "warning" in line.lower():
+                    # Skip TensorFlow/oneDNN info messages
+                    is_tf_info = "tensorflow" in line.lower() or "onednn" in line.lower()
+                    if "warning" in line.lower() and not is_tf_info:
                         cls.logger.warning(f"[MinerU] {line}")
-                    elif "error" in line.lower():
+                    elif cls._is_actual_error(line) and not is_tf_info:
                         cls.logger.error(f"[MinerU] {line}")
                         error_message = line.split("\n")[0]
                         error_lines.append(error_message)

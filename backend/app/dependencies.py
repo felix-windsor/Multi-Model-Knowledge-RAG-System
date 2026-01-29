@@ -9,6 +9,11 @@ from typing import Dict, Optional
 
 from fastapi import Depends
 
+# 设置 NO_PROXY 环境变量，避免本地服务走代理
+# 这对 qdrant_client, neo4j 等库内部使用的 httpx 也生效
+os.environ.setdefault("NO_PROXY", "localhost,127.0.0.1")
+os.environ.setdefault("no_proxy", "localhost,127.0.0.1")
+
 # 添加 knowledge-graph-rag 到 Python 路径
 backend_path = Path(__file__).parent.parent
 sys.path.insert(0, str(backend_path))
