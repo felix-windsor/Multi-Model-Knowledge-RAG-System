@@ -1,287 +1,322 @@
-# 知识图谱 RAG 系统
+# 企业内网多模态知识库 RAG 系统
 
-基于 RAGAnything 的多模态知识图谱 RAG 系统,支持文档上传、智能处理、知识查询和图谱可视化。
+面向高安全内网企业场景的本地化多模态 Knowledge Graph RAG 应用。项目基于 FastAPI、RAGAnything/LightRAG 和本地部署的大模型服务，支持复杂文档上传解析、实体关系抽取、混合检索问答、知识图谱可视化和 API 化调用，用于加速内部文档阅读与知识查询。
 
-## 功能特性
+这个项目最初来自 KG-RAG research 原型，后续围绕企业内部 RAG 方案“切分粗糙、检索策略单一、复杂文档支持不足”的问题，尝试将原型迁移为内网可运行的 AI 应用。
 
-- **📄 文档上传**: 支持 PDF、图片、Office 文档、文本等多种格式
-- **🔍 智能处理**: 自动解析文档,提取文本、图片、表格、公式等多模态内容
-- **💬 知识查询**: 基于处理后的文档进行智能问答,支持多种查询模式
-- **🕸️ 图谱可视化**: 交互式 2D 知识图谱展示,可视化实体和关系
-- **🤖 多模型支持**: 支持 OpenAI、Qwen、Ollama、LM Studio 等多种 LLM 提供商
+## 项目背景
+
+项目面向内网和数据不出域场景，敏感文档不能直接调用外部大模型 API。系统通过本地模型服务提供文本理解和多模态文档解析能力：
+
+- 文本大语言模型：用于问答生成、摘要、实体关系理解。
+- 多模态模型：用于图片、图表、扫描件和复杂版面理解。
+
+项目目标是将本地模型能力接入文档处理和问答链路，形成一个“上传文档后即可快速阅读、定位、提问和查看知识关系”的内部工具。
+
+## 解决的问题
+
+传统企业 RAG 常见方案是固定规则切分加向量检索。这个方式实现简单，但在复杂文档场景下容易出现：
+
+- 章节、表格、图示和上下文关系被切断。
+- 检索只看语义相似度，缺少实体和关系视角。
+- 图片、表格、公式、流程图等多模态内容难以进入检索链路。
+- 回答缺少来源和结构化解释。
+- 云端模型不可用，需要全部在内网和本地模型环境中运行。
+
+本项目通过多模态解析、知识图谱抽取和混合检索，将 RAG 从“简单检索问答”扩展为“复杂文档阅读加速工具”。
+
+## 核心能力
+
+- **多格式文档上传**：支持 PDF、图片、Office 文档、Markdown、文本等格式。
+- **异步文档处理**：上传后立即返回 `doc_id` 和 `task_id`，后台执行解析、实体关系抽取和图谱构建。
+- **本地模型适配**：支持 OpenAI-compatible API、Ollama、LM Studio 等接入方式，便于对接内网模型服务。
+- **多模态解析**：支持文本、图片、表格、公式等内容进入统一 RAG 链路。
+- **KG-RAG 检索增强**：基于 RAGAnything / LightRAG 支持 `local`、`global`、`hybrid`、`mix`、`naive` 多种查询模式。
+- **知识图谱可视化**：将实体和关系导出为 vis.js 可视化格式，辅助理解文档结构。
+- **服务层工程化**：抽象 `DocumentService`、`TaskService`、`WebhookService` 和 `StorageManager`。
+- **API 化集成**：提供上传、任务状态、文档问答、流式问答、图谱导出、健康检查等 V1 API。
+
+## 系统架构
+
+```text
+内部用户 / 业务系统
+        |
+        v
+FastAPI V1 API
+  - 文档上传
+  - 任务状态
+  - 文档问答
+  - 图谱导出
+  - 健康检查
+        |
+        v
+Service Layer
+  - DocumentService
+  - TaskService
+  - WebhookService
+        |
+        v
+StorageManager
+  - Local JSON Storage
+  - Database-style Storage
+        |
+        v
+RAGAnything / LightRAG
+  - 多模态解析
+  - Chunk / Embedding
+  - Entity / Relation Extraction
+  - KG-RAG Query
+        |
+        v
+本地模型服务
+  - 文本大语言模型
+  - 多模态文档理解模型
+```
+
+前端由 FastAPI 直接托管，无需单独启动前端服务。
 
 ## 技术栈
 
-**后端**:
-- FastAPI - 高性能 Web 框架
-- RAGAnything - 多模态 RAG 核心库
-- LightRAG - 底层 RAG 框架
-- Pydantic - 数据验证
+**后端**
 
-**前端**:
-- HTML5 + Bootstrap 5 - 响应式界面
-- Vanilla JavaScript - 原生 JS 实现
-- vis.js - 图谱可视化
+- FastAPI：API 服务和静态资源托管
+- Pydantic / pydantic-settings：请求模型和配置管理
+- RAGAnything / LightRAG：多模态 RAG 与 KG-RAG 核心能力
+- Qdrant / Neo4j：向量和图谱存储后端选项
+- pytest：单元测试和集成测试
 
-## 项目结构
+**前端**
 
+- HTML5 + Bootstrap 5
+- Vanilla JavaScript
+- vis.js 知识图谱可视化
+
+**模型与部署**
+
+- 本地大模型服务
+- OpenAI-compatible 本地推理服务
+- 纯内网部署
+
+## 目录结构
+
+```text
+backend/
+  app/
+    api/v1/                 # V1 API：documents/query/graph/tasks/health/config
+    services/               # DocumentService / TaskService / WebhookService
+    storage/                # StorageManager 和本地/数据库存储实现
+    middleware/             # API Key 鉴权与统一响应
+    models/                 # 请求与响应模型
+    config.py               # 读取项目根目录 .env
+    dependencies.py         # FastAPI 依赖注入与 RAG 实例创建
+  knowledge_graph_rag/      # vendored RAGAnything / LightRAG 相关代码
+  tests/                    # 单元测试与集成测试
+
+frontend/
+  index.html
+  assets/js/                # 上传、问答、图谱、配置等前端逻辑
+  assets/css/
+
+docs/
+  guides/                   # 工程迁移与使用指南
+  plans/                    # 历史设计方案
+
+data/
+  uploads/                  # 上传文件
+  storage/                  # 本地存储
 ```
-Multi-Model-Knowledge-RAG-System/
-│
-├── backend/                          # 后端服务
-│   ├── knowledge-graph-rag/          # 核心 RAG 库
-│   ├── app/                          # Web 应用
-│   │   ├── api/                      # API 路由
-│   │   ├── models/                   # 数据模型
-│   │   ├── services/                 # 业务逻辑
-│   │   ├── config.py                 # 配置管理
-│   │   ├── dependencies.py           # 依赖注入
-│   │   └── main.py                   # 应用入口
-│   ├── requirements.txt              # Python 依赖
-│   └── .env.example                  # 环境变量模板
-│
-├── frontend/                         # 前端
-│   ├── index.html                    # 主页面
-│   └── assets/                       # 静态资源
-│       ├── css/                      # 样式
-│       └── js/                       # JavaScript
-│
-├── data/                             # 数据存储
-│   ├── uploads/                      # 上传文件
-│   ├── storage/                      # RAG 存储
-│   └── output/                       # 解析输出
-│
-├── scripts/                          # 启动脚本
-│   ├── start.bat                     # Windows
-│   └── start.sh                      # Linux/Mac
-│
-└── README.md                         # 项目文档
-```
 
-## 快速开始
+## 快速启动
 
-### 前置要求
+### 1. 安装依赖
 
-- Python 3.8+
-- pip
-
-### 安装步骤
-
-1. **克隆项目**
 ```bash
-git clone <repository-url>
-cd Multi-Model-Knowledge-RAG-System
+pip install -r backend/requirements.txt
 ```
 
-2. **配置环境变量**
+### 2. 配置环境变量
+
+项目读取根目录 `.env`，不是 `backend/.env`。
+
 ```bash
-cd backend
-cp .env.example .env
-# 编辑 .env 文件,配置 LLM API Key 等参数
+cp env.example .env
 ```
 
-3. **安装依赖**
-```bash
-pip install -r requirements.txt
-```
+核心配置：
 
-4. **启动服务器**
-
-**Windows**:
-```bash
-cd ..
-scripts\start.bat
-```
-
-**Linux/Mac**:
-```bash
-cd ..
-chmod +x scripts/start.sh
-./scripts/start.sh
-```
-
-5. **访问应用**
-- 主页面: http://localhost:8000
-- API 文档: http://localhost:8000/docs
-
-## 环境变量配置
-
-编辑 `backend/.env` 文件:
-
-```env
-# LLM 配置
-LLM_PROVIDER=openai                   # 提供商: openai, qwen, ollama, lmstudio
-LLM_MODEL=gpt-4o                      # 模型名称
-LLM_API_KEY=sk-your-api-key           # API Key
-LLM_BASE_URL=https://api.openai.com/v1
-
-# Embedding 配置
-EMBEDDING_MODEL=text-embedding-3-large
-EMBEDDING_DIM=3072
-
-# 存储配置
-STORAGE_DIR=../data/storage
-UPLOAD_DIR=../data/uploads
-OUTPUT_DIR=../data/output
-
-# 文档处理配置
-MAX_CONCURRENT_FILES=2
-
-# 服务器配置
-HOST=0.0.0.0
-PORT=8000
-CORS_ORIGINS=http://localhost:3000,http://localhost:8080
-```
-
-### 多 LLM 提供商配置
-
-#### OpenAI
 ```env
 LLM_PROVIDER=openai
-LLM_MODEL=gpt-4o
-LLM_API_KEY=sk-your-openai-key
-LLM_BASE_URL=https://api.openai.com/v1
+LLM_MODEL=local-chat-model
+LLM_API_KEY=internal-key
+LLM_BASE_URL=http://your-internal-model-gateway/v1
+
+VISION_PROVIDER=openai
+VISION_MODEL=local-vision-model
+VISION_BASE_URL=http://your-internal-model-gateway/v1
+
+EMBEDDING_MODEL=text-embedding-local
+EMBEDDING_DIM=3072
+
+STORAGE_BACKEND=local
+API_KEYS=sk-internal-demo
 ```
 
-#### Qwen (通义千问)
+如果使用 Qdrant + Neo4j：
+
+```bash
+docker compose up -d qdrant neo4j
+```
+
+并配置：
+
 ```env
-LLM_PROVIDER=qwen
-LLM_MODEL=qwen-turbo
-LLM_API_KEY=sk-your-qwen-key
-LLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+STORAGE_BACKEND=qdrant_neo4j
+QDRANT_URL=http://localhost:6333
+NEO4J_URI=bolt://localhost:7687
+NEO4J_USER=neo4j
+NEO4J_PASSWORD=your-password
 ```
 
-#### Ollama (本地)
-```env
-LLM_PROVIDER=ollama
-LLM_MODEL=qwen2.5:14b
-LLM_BASE_URL=http://localhost:11434
-EMBEDDING_MODEL=bge-m3:latest
+### 3. 启动服务
+
+```bash
+cd backend
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-#### LM Studio (本地)
-```env
-LLM_PROVIDER=lmstudio
-LLM_MODEL=local-model
-LLM_BASE_URL=http://localhost:1234/v1
-```
+访问：
 
-## API 文档
+- 前端页面：http://localhost:8000
+- API 文档：http://localhost:8000/docs
+- 健康检查：http://localhost:8000/api/v1/health
 
-### 1. 上传文档
+## V1 API
+
+### 健康检查
+
 ```http
-POST /api/upload
+GET /api/v1/health
+GET /api/v1/health/detailed
+```
+
+### 上传文档
+
+```http
+POST /api/v1/documents/upload
 Content-Type: multipart/form-data
+X-API-Key: <internal-api-key>
 
-file: <binary>
+file=<binary>
+callback_url=<optional>
 ```
 
-### 2. 获取文档状态
-```http
-GET /api/documents/{doc_id}
-```
+返回：
 
-### 3. 获取文档列表
-```http
-GET /api/documents
-```
-
-### 4. 知识查询
-```http
-POST /api/query
-Content-Type: application/json
-
+```json
 {
-  "question": "什么是机器学习?",
-  "mode": "mix",
-  "doc_ids": ["doc-123"]
+  "code": 0,
+  "message": "Document upload started",
+  "data": {
+    "doc_id": "uuid",
+    "task_id": "uuid",
+    "status": "processing",
+    "filename": "manual.pdf"
+  }
 }
 ```
 
-**查询模式**:
-- `mix`: 混合模式 (推荐)
-- `local`: 本地模式
-- `global`: 全局模式
-- `hybrid`: 混合检索
-- `naive`: 简单检索
+### 查询任务状态
 
-### 5. 导出知识图谱
 ```http
-GET /api/graph?doc_id=<doc_id>&limit=1000
+GET /api/v1/tasks/{task_id}
+X-API-Key: <internal-api-key>
 ```
 
-## 使用示例
+### 文档问答
 
-### 1. 上传文档
-1. 在左侧"文档上传"区域选择文件
-2. 点击"上传文档"按钮
-3. 等待处理完成(可在文档列表中查看状态)
+```http
+POST /api/v1/query
+Content-Type: application/json
+X-API-Key: <internal-api-key>
 
-### 2. 知识查询
-1. 在中间"知识查询"区域输入问题
-2. 选择查询模式
-3. 点击"查询"按钮
-4. 查看回答结果
+{
+  "question": "总结这份文档的关键风险点",
+  "mode": "mix",
+  "doc_ids": [],
+  "top_k": 10
+}
+```
 
-### 3. 查看知识图谱
-1. 在右侧"知识图谱"区域点击"刷新图谱"
-2. 浏览交互式图谱
-3. 点击节点查看详情
-4. 双击节点聚焦查看
+### 流式问答
 
-## 开发指南
+```http
+POST /api/v1/query/stream
+Content-Type: application/json
+X-API-Key: <internal-api-key>
 
-### 后端开发
+{
+  "question": "这份文档涉及哪些关键设备？",
+  "mode": "hybrid"
+}
+```
 
-修改 API 逻辑:
-- API 路由: `backend/app/api/`
-- 业务逻辑: `backend/app/services/`
-- 数据模型: `backend/app/models/`
+### 图谱导出
 
-启动开发服务器:
+```http
+GET /api/v1/graph?doc_id=<doc_id>&limit=1000
+X-API-Key: <internal-api-key>
+```
+
+## 查询模式说明
+
+| 模式 | 适用场景 |
+| --- | --- |
+| `mix` | 默认推荐，综合局部内容和全局关系 |
+| `local` | 需要围绕局部片段回答的问题 |
+| `global` | 需要从整体实体关系理解的问题 |
+| `hybrid` | 需要结合向量召回和图谱关系的问题 |
+| `naive` | 基础检索模式，用作 baseline |
+
+## 测试
+
+默认运行单元测试，不依赖外部 Qdrant / Neo4j：
+
 ```bash
 cd backend
-uvicorn app.main:app --reload
+python -m pytest
 ```
 
-### 前端开发
+运行单个测试文件：
 
-修改前端文件:
-- HTML: `frontend/index.html`
-- CSS: `frontend/assets/css/styles.css`
-- JavaScript: `frontend/assets/js/`
+```bash
+cd backend
+python -m pytest tests/test_config.py
+```
 
-## 注意事项
+运行集成测试前先启动外部服务：
 
-1. **首次使用**: 请先配置 `.env` 文件中的 LLM API Key
-2. **存储目录**: 确保 `data/` 目录有读写权限
-3. **文档格式**: Office 文档转换需要安装 LibreOffice
-4. **内存使用**: 大文件处理可能需要较多内存
+```bash
+docker compose up -d qdrant neo4j
+cd backend
+python -m pytest -m integration
+```
 
-## 常见问题
+## 当前边界与后续优化
 
-### Q: 上传文档失败?
-A: 检查文件格式是否支持,以及 `data/uploads` 目录权限
+当前系统更接近企业内网 AI 应用原型和 API 化前期版本，已经具备主要链路，但仍有几个适合继续补强的方向：
 
-### Q: 查询没有结果?
-A: 确保文档已处理完成(状态为"已完成")
+- 补齐问答来源追踪，返回文档、页码、chunk、分数和实体路径。
+- 增加检索评估集，对比粗切分 baseline 与 KG-RAG / hybrid 检索效果。
+- 将 FastAPI background task 替换或扩展为队列式任务系统。
+- 补充本地模型服务部署文档。
+- 增加结构化日志、模型调用超时、并发控制和运行指标。
 
-### Q: 图谱显示为空?
-A: 可能是文档尚未处理完成,或者没有提取到实体
-
-### Q: API Key 错误?
-A: 检查 `.env` 文件中的 `LLM_API_KEY` 配置是否正确
-
-## 贡献
-
-欢迎提交 Issue 和 Pull Request!
-
-## 许可证
+## 许可证与致谢
 
 MIT License
 
-## 致谢
+核心依赖：
 
-- [LightRAG](https://github.com/HKUDS/LightRAG) - 底层 RAG 框架
-- [RAGAnything](https://github.com/HKUDS/RAGAnything) - 多模态 RAG 核心
-- [vis.js](https://visjs.org/) - 图谱可视化库
+- [LightRAG](https://github.com/HKUDS/LightRAG)
+- [RAGAnything](https://github.com/HKUDS/RAGAnything)
+- [vis.js](https://visjs.org/)

@@ -44,6 +44,52 @@ temp/
 # Claude Code local settings
 .claude/settings.local.json
 
+# Agent / local assistant workspace config
+.codex/
+.agents/
+
+# Private career / interview notes
+docs/career/
+
+# Secrets and credentials
+.env
+.env.*
+!.env.example
+*.secret
+*.secrets
+*.key
+*.pem
+*.p12
+*.pfx
+*.crt
+*.cer
+*.csr
+id_rsa*
+id_ed25519*
+
+# Private source documents and office files
+*.pdf
+*.doc
+*.docx
+*.ppt
+*.pptx
+*.xls
+*.xlsx
+*.csv
+*.tsv
+
+# Local model artifacts / weights
+*.safetensors
+*.ckpt
+*.pt
+*.pth
+*.onnx
+*.gguf
+*.bin
+models/
+checkpoints/
+model_cache/
+
 # Framework-specific files
 local_neo4jWorkDir/
 neo4jWorkDir/
