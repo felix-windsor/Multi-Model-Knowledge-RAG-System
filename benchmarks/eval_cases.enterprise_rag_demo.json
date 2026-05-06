@@ -1,0 +1,25 @@
+{
+  "document": "benchmarks/enterprise_rag_demo.md",
+  "queries": [
+    {
+      "question": "这个原型主要解决什么业务问题？",
+      "mode": "mix",
+      "expected_keywords": ["文档", "粗粒度", "检索", "阅读", "知识"]
+    },
+    {
+      "question": "系统对外封装了哪些核心 API？",
+      "mode": "mix",
+      "expected_keywords": ["上传", "任务", "问答", "图谱", "健康"]
+    },
+    {
+      "question": "这套 benchmark 使用了怎样的模型配置？",
+      "mode": "mix",
+      "expected_keywords": ["Qwen", "80B", "32B", "embedding", "1024"]
+    },
+    {
+      "question": "这个项目为什么适合企业内网部署？",
+      "mode": "mix",
+      "expected_keywords": ["内网", "本地", "文档", "模型", "API"]
+    }
+  ]
+}
