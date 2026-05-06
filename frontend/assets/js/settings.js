@@ -77,10 +77,10 @@ const SettingsManager = {
             const backendStatus = document.getElementById('backendStatus');
             if (backendStatus) {
                 if (health.status === 'healthy') {
-                    backendStatus.textContent = 'Online';
+                    backendStatus.textContent = '在线';
                     backendStatus.className = 'info-value status-badge status-success';
                 } else {
-                    backendStatus.textContent = 'Degraded';
+                    backendStatus.textContent = '降级';
                     backendStatus.className = 'info-value status-badge status-warning';
                 }
             }
@@ -88,7 +88,7 @@ const SettingsManager = {
             // Qdrant status
             const qdrantStatus = document.getElementById('qdrantStatus');
             if (qdrantStatus) {
-                qdrantStatus.textContent = health.components?.qdrant ? 'Online' : 'Offline';
+                qdrantStatus.textContent = health.components?.qdrant ? '在线' : '离线';
                 qdrantStatus.classList.toggle('online', health.components?.qdrant);
                 qdrantStatus.classList.toggle('offline', !health.components?.qdrant);
             }
@@ -96,7 +96,7 @@ const SettingsManager = {
             // Neo4j status
             const neo4jStatus = document.getElementById('neo4jStatus');
             if (neo4jStatus) {
-                neo4jStatus.textContent = health.components?.neo4j ? 'Online' : 'Offline';
+                neo4jStatus.textContent = health.components?.neo4j ? '在线' : '离线';
                 neo4jStatus.classList.toggle('online', health.components?.neo4j);
                 neo4jStatus.classList.toggle('offline', !health.components?.neo4j);
             }
@@ -104,13 +104,13 @@ const SettingsManager = {
             // Vector DB status (in settings)
             const vectorDbStatus = document.getElementById('vectorDbStatus');
             if (vectorDbStatus) {
-                vectorDbStatus.textContent = health.components?.qdrant ? 'Qdrant Online' : 'Qdrant Offline';
+                vectorDbStatus.textContent = health.components?.qdrant ? 'Qdrant 在线' : 'Qdrant 离线';
             }
 
             // Graph DB status (in settings)
             const graphDbStatus = document.getElementById('graphDbStatus');
             if (graphDbStatus) {
-                graphDbStatus.textContent = health.components?.neo4j ? 'Neo4j Online' : 'Neo4j Offline';
+                graphDbStatus.textContent = health.components?.neo4j ? 'Neo4j 在线' : 'Neo4j 离线';
             }
 
             // Update connection indicator
@@ -118,10 +118,10 @@ const SettingsManager = {
             if (connectionStatus) {
                 if (health.status === 'healthy') {
                     connectionStatus.classList.remove('disconnected');
-                    connectionStatus.querySelector('span:last-child').textContent = 'Connected';
+                    connectionStatus.querySelector('span:last-child').textContent = '已连接';
                 } else {
                     connectionStatus.classList.add('disconnected');
-                    connectionStatus.querySelector('span:last-child').textContent = 'Disconnected';
+                    connectionStatus.querySelector('span:last-child').textContent = '未连接';
                 }
             }
 
@@ -130,14 +130,14 @@ const SettingsManager = {
 
             const backendStatus = document.getElementById('backendStatus');
             if (backendStatus) {
-                backendStatus.textContent = 'Offline';
+                backendStatus.textContent = '离线';
                 backendStatus.className = 'info-value status-badge status-error';
             }
 
             const connectionStatus = document.getElementById('connectionStatus');
             if (connectionStatus) {
                 connectionStatus.classList.add('disconnected');
-                connectionStatus.querySelector('span:last-child').textContent = 'Disconnected';
+                connectionStatus.querySelector('span:last-child').textContent = '未连接';
             }
         }
     },
@@ -168,18 +168,17 @@ const SettingsManager = {
 
     confirmClearAllDocuments() {
         Modal.confirm(
-            'Clear All Documents',
+            '清空全部文档',
             `
-                <p>Are you sure you want to delete <strong>all documents</strong>?</p>
+                <p>确定要删除<strong>全部文档</strong>吗？</p>
                 <p style="color: var(--error); margin-top: var(--space-2);">
-                    This will remove all uploaded files and their processed data.
-                    This action cannot be undone.
+                    这会移除所有已上传文件及其处理结果。此操作不可撤销。
                 </p>
             `,
             async () => {
                 await this.clearAllDocuments();
             },
-            { danger: true, confirmText: 'Delete All' }
+            { danger: true, confirmText: '全部删除' }
         );
     },
 
@@ -189,44 +188,43 @@ const SettingsManager = {
                 const docs = DocumentManager.documents;
 
                 if (docs.length === 0) {
-                    Toast.info('No documents to delete');
+                    Toast.info('当前没有可删除的文档');
                     return;
                 }
 
                 const docIds = docs.map(d => d.doc_id);
                 await DocumentApi.deleteMultiple(docIds);
 
-                Toast.success(`Deleted ${docIds.length} documents`);
+                Toast.success(`已删除 ${docIds.length} 个文档`);
 
                 // Refresh everything
                 await DocumentManager.loadDocuments();
                 await GraphManager.loadGraph();
             }
         } catch (error) {
-            Toast.error(`Failed to clear documents: ${error.message}`);
+            Toast.error(`清空文档失败：${error.message}`);
         }
     },
 
     confirmResetGraph() {
         Modal.confirm(
-            'Reset Knowledge Graph',
+            '重置知识图谱',
             `
-                <p>Are you sure you want to reset the <strong>knowledge graph</strong>?</p>
+                <p>确定要重置<strong>知识图谱</strong>吗？</p>
                 <p style="color: var(--warning); margin-top: var(--space-2);">
-                    This will clear all extracted entities and relationships.
-                    Documents will remain but will need to be reprocessed.
+                    这会清空已抽取的实体和关系。文档会保留，但需要重新处理。
                 </p>
             `,
             async () => {
                 await this.resetGraph();
             },
-            { danger: true, confirmText: 'Reset Graph' }
+            { danger: true, confirmText: '重置图谱' }
         );
     },
 
     async resetGraph() {
         // Note: This would need a backend endpoint to actually reset the graph
         // For now just show a message
-        Toast.info('Graph reset requires backend support. Please contact administrator.');
+        Toast.info('重置图谱需要后端接口支持，请联系管理员。');
     }
 };

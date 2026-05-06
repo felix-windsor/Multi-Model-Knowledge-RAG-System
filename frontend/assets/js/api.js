@@ -87,7 +87,7 @@ const ApiClient = {
                         resolve(xhr.responseText);
                     }
                 } else {
-                    let errorMessage = `Upload failed: ${xhr.status}`;
+                    let errorMessage = `上传失败：${xhr.status}`;
                     try {
                         const errorData = JSON.parse(xhr.responseText);
                         errorMessage = errorData.message || errorData.detail || errorMessage;
@@ -99,7 +99,7 @@ const ApiClient = {
             });
 
             xhr.addEventListener('error', () => {
-                reject(new Error('Upload failed: Network error'));
+                reject(new Error('上传失败：网络错误'));
             });
 
             xhr.open('POST', url);
@@ -226,7 +226,7 @@ const DocumentApi = {
 
         const failed = results.filter(r => r.status === 'rejected');
         if (failed.length > 0) {
-            throw new Error(`Failed to delete ${failed.length} document(s)`);
+            throw new Error(`有 ${failed.length} 个文档删除失败`);
         }
 
         return true;

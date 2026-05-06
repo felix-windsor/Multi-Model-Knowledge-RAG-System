@@ -84,12 +84,12 @@ const DocumentManager = {
             // Validate file
             const ext = '.' + file.name.split('.').pop().toLowerCase();
             if (!UPLOAD_CONFIG.allowedExtensions.includes(ext)) {
-                Toast.error(`Invalid file type: ${file.name}`);
+                Toast.error(`不支持的文件类型：${file.name}`);
                 continue;
             }
 
             if (file.size > UPLOAD_CONFIG.maxFileSize) {
-                Toast.error(`File too large: ${file.name} (max ${formatFileSize(UPLOAD_CONFIG.maxFileSize)})`);
+                Toast.error(`文件过大：${file.name}（最大 ${formatFileSize(UPLOAD_CONFIG.maxFileSize)}）`);
                 continue;
             }
 
@@ -110,7 +110,7 @@ const DocumentManager = {
             // Remove temp and refresh list
             this.removeTempDocument(tempId);
 
-            Toast.success(`Uploaded: ${file.name}`);
+            Toast.success(`上传成功：${file.name}`);
 
             // Refresh document list
             await this.loadDocuments();
@@ -123,7 +123,7 @@ const DocumentManager = {
 
         } catch (error) {
             this.removeTempDocument(tempId);
-            Toast.error(`Upload failed: ${error.message}`);
+            Toast.error(`上传失败：${error.message}`);
         }
     },
 
@@ -145,7 +145,7 @@ const DocumentManager = {
             <div class="doc-info">
                 <div class="doc-name">${escapeHtml(filename)}</div>
                 <div class="doc-meta">
-                    <span>Uploading...</span>
+                    <span>正在上传...</span>
                 </div>
                 <div class="progress-bar" style="margin-top: 8px;">
                     <div class="progress-fill" style="width: 0%"></div>
@@ -182,7 +182,7 @@ const DocumentManager = {
             });
         } catch (error) {
             console.error('Failed to load documents:', error);
-            Toast.error('Failed to load documents');
+            Toast.error('获取文档列表失败');
         }
     },
 
@@ -199,8 +199,8 @@ const DocumentManager = {
                             <polyline points="13 2 13 9 20 9"/>
                         </svg>
                     </div>
-                    <p>No documents yet</p>
-                    <span>Upload your first document to get started</span>
+                    <p>暂无文档</p>
+                    <span>上传文档后即可开始解析和问答</span>
                 </div>
             `;
             return;
@@ -238,7 +238,7 @@ const DocumentManager = {
             retryBtn?.addEventListener('click', (e) => {
                 e.stopPropagation();
                 // For now just show a message - would need to re-upload
-                Toast.info('Please re-upload the document to retry');
+                Toast.info('请重新上传该文档后重试');
             });
         });
 
@@ -264,7 +264,7 @@ const DocumentManager = {
                     <div class="doc-name" title="${escapeHtml(doc.filename)}">${escapeHtml(doc.filename)}</div>
                     <div class="doc-meta">
                         <span>${formatDate(doc.created_at)}</span>
-                        ${doc.chunks_count ? `<span>${doc.chunks_count} chunks</span>` : ''}
+                        ${doc.chunks_count ? `<span>${doc.chunks_count} 个分块</span>` : ''}
                     </div>
                 </div>
                 <div class="doc-status">
@@ -272,14 +272,14 @@ const DocumentManager = {
                 </div>
                 <div class="doc-actions">
                     ${doc.status === 'failed' ? `
-                        <button class="btn btn-icon btn-retry" title="Retry">
+                        <button class="btn btn-icon btn-retry" title="重试">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <polyline points="23 4 23 10 17 10"/>
                                 <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
                             </svg>
                         </button>
                     ` : ''}
-                    <button class="btn btn-icon btn-delete" title="Delete">
+                    <button class="btn btn-icon btn-delete" title="删除">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polyline points="3 6 5 6 21 6"/>
                             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
@@ -335,40 +335,40 @@ const DocumentManager = {
             const content = `
                 <div class="doc-details">
                     <div class="detail-row">
-                        <span class="detail-label">File Name</span>
+                        <span class="detail-label">文件名</span>
                         <span class="detail-value">${escapeHtml(doc.filename)}</span>
                     </div>
                     <div class="detail-row">
-                        <span class="detail-label">Status</span>
+                        <span class="detail-label">状态</span>
                         <span class="detail-value">
                             <span class="status-badge ${status.class}">${status.label}</span>
                         </span>
                     </div>
                     <div class="detail-row">
-                        <span class="detail-label">Progress</span>
+                        <span class="detail-label">进度</span>
                         <span class="detail-value">${doc.progress || 0}%</span>
                     </div>
                     ${doc.step ? `
                         <div class="detail-row">
-                            <span class="detail-label">Current Step</span>
+                            <span class="detail-label">当前步骤</span>
                             <span class="detail-value">${doc.step}</span>
                         </div>
                     ` : ''}
                     <div class="detail-row">
-                        <span class="detail-label">Chunks</span>
+                        <span class="detail-label">分块数量</span>
                         <span class="detail-value">${doc.chunks_count || 0}</span>
                     </div>
                     <div class="detail-row">
-                        <span class="detail-label">Created</span>
+                        <span class="detail-label">创建时间</span>
                         <span class="detail-value">${doc.created_at ? new Date(doc.created_at).toLocaleString() : '-'}</span>
                     </div>
                     <div class="detail-row">
-                        <span class="detail-label">Updated</span>
+                        <span class="detail-label">更新时间</span>
                         <span class="detail-value">${doc.updated_at ? new Date(doc.updated_at).toLocaleString() : '-'}</span>
                     </div>
                     ${doc.error_message ? `
                         <div class="detail-error">
-                            <strong>Error:</strong> ${escapeHtml(doc.error_message)}
+                            <strong>错误：</strong> ${escapeHtml(doc.error_message)}
                         </div>
                     ` : ''}
                 </div>
@@ -381,23 +381,23 @@ const DocumentManager = {
                 </style>
             `;
 
-            Modal.showDocument('Document Details', content);
+            Modal.showDocument('文档详情', content);
         } catch (error) {
-            Toast.error(`Failed to load details: ${error.message}`);
+            Toast.error(`获取文档详情失败：${error.message}`);
         }
     },
 
     confirmDelete(docIds) {
         const count = docIds.length;
         const message = count === 1
-            ? 'Are you sure you want to delete this document? This action cannot be undone.'
-            : `Are you sure you want to delete ${count} documents? This action cannot be undone.`;
+            ? '确定要删除这个文档吗？此操作不可撤销。'
+            : `确定要删除 ${count} 个文档吗？此操作不可撤销。`;
 
         Modal.confirm(
-            'Delete Document' + (count > 1 ? 's' : ''),
+            count === 1 ? '删除文档' : '删除多个文档',
             message,
             () => this.performDelete(docIds),
-            { danger: true, confirmText: 'Delete' }
+            { danger: true, confirmText: '删除' }
         );
     },
 
@@ -411,7 +411,7 @@ const DocumentManager = {
             // Clear from selection
             docIds.forEach(id => this.selectedIds.delete(id));
 
-            Toast.success(`Deleted ${docIds.length} document(s)`);
+            Toast.success(`已删除 ${docIds.length} 个文档`);
 
             // Refresh list
             await this.loadDocuments();
@@ -451,7 +451,7 @@ const DocumentManager = {
                     await this.loadDocuments();
 
                     if (doc.status === 'completed') {
-                        Toast.success(`Document processed: ${doc.filename}`);
+                        Toast.success(`文档处理完成：${doc.filename}`);
 
                         // Refresh graph after delay
                         setTimeout(() => {
@@ -460,7 +460,7 @@ const DocumentManager = {
                             }
                         }, POLL_CONFIG.graphRefreshDelay);
                     } else {
-                        Toast.error(`Processing failed: ${doc.filename}`);
+                        Toast.error(`文档处理失败：${doc.filename}`);
                     }
                 }
             } catch (error) {

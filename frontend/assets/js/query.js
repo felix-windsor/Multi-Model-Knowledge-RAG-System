@@ -104,8 +104,8 @@ const QueryManager = {
                 await this.executeNormalQuery(question, mode, docIds, assistantMessage);
             }
         } catch (error) {
-            this.updateMessageContent(assistantMessage, `Error: ${error.message}`);
-            Toast.error(`Query failed: ${error.message}`);
+            this.updateMessageContent(assistantMessage, `错误：${error.message}`);
+            Toast.error(`查询失败：${error.message}`);
         } finally {
             this.isStreaming = false;
             this.updateSendButton(false);
@@ -157,7 +157,7 @@ const QueryManager = {
             },
             // On error
             (error) => {
-                this.updateMessageContent(messageEl, `Error: ${error.message}`);
+                this.updateMessageContent(messageEl, `错误：${error.message}`);
             }
         );
     },
@@ -218,7 +218,7 @@ const QueryManager = {
             let metaHtml = '';
 
             if (meta.mode) {
-                metaHtml += `<span>Mode: ${QUERY_MODES[meta.mode]?.label || meta.mode}</span>`;
+                metaHtml += `<span>模式：${QUERY_MODES[meta.mode]?.label || meta.mode}</span>`;
             }
 
             if (meta.duration) {
@@ -232,7 +232,7 @@ const QueryManager = {
                 const sourcesEl = document.createElement('div');
                 sourcesEl.className = 'message-sources';
                 sourcesEl.innerHTML = `
-                    <div class="message-sources-title">Sources:</div>
+                    <div class="message-sources-title">来源：</div>
                     <ul>
                         ${meta.sources.map(s => `<li>${escapeHtml(s)}</li>`).join('')}
                     </ul>
@@ -303,8 +303,8 @@ const QueryManager = {
                         <line x1="12" y1="17" x2="12.01" y2="17"/>
                     </svg>
                 </div>
-                <h3>Ask anything about your documents</h3>
-                <p>Your questions will be answered using the knowledge extracted from uploaded documents.</p>
+                <h3>向文档知识库提问</h3>
+                <p>系统会基于已上传文档抽取出的知识进行检索与回答。</p>
             </div>
         `;
 

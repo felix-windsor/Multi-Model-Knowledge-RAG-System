@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Neural RAG - Knowledge Graph System</title>
+    <title>企业内网知识图谱 RAG 系统</title>
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -37,13 +37,13 @@
                     </svg>
                 </div>
                 <div class="brand-text">
-                    <span class="brand-name">Neural RAG</span>
-                    <span class="brand-tagline">Knowledge Graph System</span>
+                    <span class="brand-name">企业知识 RAG</span>
+                    <span class="brand-tagline">内网知识图谱系统</span>
                 </div>
             </div>
 
             <div class="header-actions">
-                <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+                <button class="theme-toggle" id="themeToggle" aria-label="切换主题">
                     <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
                     </svg>
@@ -65,13 +65,13 @@
                     <line x1="16" y1="17" x2="8" y2="17"/>
                     <polyline points="10 9 9 9 8 9"/>
                 </svg>
-                <span>Documents</span>
+                <span>文档</span>
             </button>
             <button class="tab-btn" data-tab="query">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
                 </svg>
-                <span>Q&A</span>
+                <span>问答</span>
             </button>
             <button class="tab-btn" data-tab="graph">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -81,14 +81,14 @@
                     <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
                     <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
                 </svg>
-                <span>Graph</span>
+                <span>图谱</span>
             </button>
             <button class="tab-btn" data-tab="settings">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="12" cy="12" r="3"/>
                     <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
                 </svg>
-                <span>Settings</span>
+                <span>设置</span>
             </button>
         </nav>
 
@@ -106,27 +106,27 @@
                                 <line x1="12" y1="3" x2="12" y2="15"/>
                             </svg>
                         </div>
-                        <h3>Drop files here</h3>
-                        <p>or click to browse</p>
-                        <div class="upload-formats">PDF, Word, Excel, PPT, Images</div>
+                        <h3>拖拽文件到这里</h3>
+                        <p>或点击选择本地文件</p>
+                        <div class="upload-formats">PDF、Word、Excel、PPT、图片</div>
                         <input type="file" id="fileInput" accept=".pdf,.jpg,.jpeg,.png,.bmp,.doc,.docx,.ppt,.pptx,.txt,.md" multiple hidden>
                         <button class="btn btn-primary btn-glow" id="browseBtn">
-                            <span>Choose Files</span>
+                            <span>选择文件</span>
                         </button>
                     </div>
 
                     <!-- Document List -->
                     <div class="document-list glass-card">
                         <div class="list-header">
-                            <h3>Document Library</h3>
+                            <h3>文档库</h3>
                             <div class="list-actions">
-                                <button class="btn btn-icon" id="refreshDocsBtn" title="Refresh">
+                                <button class="btn btn-icon" id="refreshDocsBtn" title="刷新">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <polyline points="23 4 23 10 17 10"/>
                                         <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
                                     </svg>
                                 </button>
-                                <button class="btn btn-danger btn-icon" id="deleteSelectedBtn" title="Delete selected" disabled>
+                                <button class="btn btn-danger btn-icon" id="deleteSelectedBtn" title="删除已选文档" disabled>
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <polyline points="3 6 5 6 21 6"/>
                                         <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
@@ -140,7 +140,7 @@
                             <label class="checkbox-wrapper select-all">
                                 <input type="checkbox" id="selectAllDocs">
                                 <span class="checkmark"></span>
-                                <span>Select all</span>
+                                <span>全选</span>
                             </label>
                         </div>
 
@@ -152,8 +152,8 @@
                                         <polyline points="13 2 13 9 20 9"/>
                                     </svg>
                                 </div>
-                                <p>No documents yet</p>
-                                <span>Upload your first document to get started</span>
+                                <p>暂无文档</p>
+                                <span>上传文档后即可开始解析和问答</span>
                             </div>
                         </div>
                     </div>
@@ -166,14 +166,14 @@
                     <!-- Query Settings -->
                     <div class="query-settings glass-card">
                         <div class="setting-group">
-                            <label>Query Mode</label>
+                            <label>检索模式</label>
                             <div class="select-wrapper">
                                 <select id="modeSelect">
-                                    <option value="mix" selected>Mix (Recommended)</option>
-                                    <option value="local">Local</option>
-                                    <option value="global">Global</option>
-                                    <option value="hybrid">Hybrid</option>
-                                    <option value="naive">Naive</option>
+                                    <option value="mix" selected>混合模式（推荐）</option>
+                                    <option value="local">局部检索</option>
+                                    <option value="global">全局检索</option>
+                                    <option value="hybrid">向量+图谱</option>
+                                    <option value="naive">基础向量检索</option>
                                 </select>
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <polyline points="6 9 12 15 18 9"/>
@@ -181,10 +181,10 @@
                             </div>
                         </div>
                         <div class="setting-group">
-                            <label>Document Scope</label>
+                            <label>文档范围</label>
                             <div class="select-wrapper">
                                 <select id="docScopeSelect">
-                                    <option value="all" selected>All Documents</option>
+                                    <option value="all" selected>全部文档</option>
                                 </select>
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <polyline points="6 9 12 15 18 9"/>
@@ -204,8 +204,8 @@
                                         <line x1="12" y1="17" x2="12.01" y2="17"/>
                                     </svg>
                                 </div>
-                                <h3>Ask anything about your documents</h3>
-                                <p>Your questions will be answered using the knowledge extracted from uploaded documents.</p>
+                                <h3>向文档知识库提问</h3>
+                                <p>系统会基于已上传文档抽取出的知识进行检索与回答。</p>
                             </div>
                         </div>
 
@@ -213,7 +213,7 @@
                             <div class="chat-input-wrapper">
                                 <textarea
                                     id="queryInput"
-                                    placeholder="Ask a question... (Ctrl+Enter to send)"
+                                    placeholder="请输入问题...（Ctrl+Enter 发送）"
                                     rows="1"
                                 ></textarea>
                                 <button class="btn btn-primary btn-send" id="sendQueryBtn">
@@ -224,7 +224,7 @@
                                 </button>
                             </div>
                             <div class="input-hint">
-                                <span>Press <kbd>Ctrl</kbd> + <kbd>Enter</kbd> to send</span>
+                                <span>按 <kbd>Ctrl</kbd> + <kbd>Enter</kbd> 发送</span>
                             </div>
                         </div>
                     </div>
@@ -241,13 +241,13 @@
                                 <circle cx="11" cy="11" r="8"/>
                                 <line x1="21" y1="21" x2="16.65" y2="16.65"/>
                             </svg>
-                            <input type="text" id="graphSearch" placeholder="Search entities...">
+                            <input type="text" id="graphSearch" placeholder="搜索实体...">
                         </div>
 
                         <div class="toolbar-actions">
                             <div class="select-wrapper compact">
                                 <select id="graphDocFilter">
-                                    <option value="all">All Documents</option>
+                                    <option value="all">全部文档</option>
                                 </select>
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <polyline points="6 9 12 15 18 9"/>
@@ -255,7 +255,7 @@
                             </div>
 
                             <div class="zoom-controls">
-                                <button class="btn btn-icon" id="zoomInBtn" title="Zoom in">
+                                <button class="btn btn-icon" id="zoomInBtn" title="放大">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <circle cx="11" cy="11" r="8"/>
                                         <line x1="21" y1="21" x2="16.65" y2="16.65"/>
@@ -263,14 +263,14 @@
                                         <line x1="8" y1="11" x2="14" y2="11"/>
                                     </svg>
                                 </button>
-                                <button class="btn btn-icon" id="zoomOutBtn" title="Zoom out">
+                                <button class="btn btn-icon" id="zoomOutBtn" title="缩小">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <circle cx="11" cy="11" r="8"/>
                                         <line x1="21" y1="21" x2="16.65" y2="16.65"/>
                                         <line x1="8" y1="11" x2="14" y2="11"/>
                                     </svg>
                                 </button>
-                                <button class="btn btn-icon" id="resetViewBtn" title="Reset view">
+                                <button class="btn btn-icon" id="resetViewBtn" title="重置视图">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <polyline points="23 4 23 10 17 10"/>
                                         <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
@@ -278,7 +278,7 @@
                                 </button>
                             </div>
 
-                            <button class="btn btn-icon btn-fullscreen" id="fullscreenBtn" title="Fullscreen">
+                            <button class="btn btn-icon btn-fullscreen" id="fullscreenBtn" title="全屏">
                                 <svg class="icon-expand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <polyline points="15 3 21 3 21 9"/>
                                     <polyline points="9 21 3 21 3 15"/>
@@ -300,7 +300,7 @@
                         <div class="graph-canvas" id="graphContainer">
                             <div class="graph-loading" id="graphLoading">
                                 <div class="loading-spinner"></div>
-                                <span>Loading graph...</span>
+                                <span>正在加载图谱...</span>
                             </div>
                         </div>
 
@@ -322,15 +322,15 @@
                     <div class="graph-stats" id="graphStats">
                         <div class="stat-item">
                             <span class="stat-value" id="entityCount">0</span>
-                            <span class="stat-label">Entities</span>
+                            <span class="stat-label">实体</span>
                         </div>
                         <div class="stat-item">
                             <span class="stat-value" id="relationCount">0</span>
-                            <span class="stat-label">Relations</span>
+                            <span class="stat-label">关系</span>
                         </div>
                         <div class="stat-item">
                             <span class="stat-value" id="docCount">0</span>
-                            <span class="stat-label">Documents</span>
+                            <span class="stat-label">文档</span>
                         </div>
                     </div>
                 </div>
@@ -340,25 +340,25 @@
             <section class="tab-panel" id="panel-settings">
                 <div class="settings-layout">
                     <div class="settings-section glass-card">
-                        <h3>Appearance</h3>
+                        <h3>外观</h3>
                         <div class="setting-row">
                             <div class="setting-info">
-                                <label>Theme</label>
-                                <p>Choose your preferred color scheme</p>
+                                <label>主题</label>
+                                <p>选择界面配色方案</p>
                             </div>
                             <div class="theme-switcher">
                                 <button class="theme-option" data-theme="dark">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
                                     </svg>
-                                    <span>Dark</span>
+                                    <span>深色</span>
                                 </button>
                                 <button class="theme-option" data-theme="light">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <circle cx="12" cy="12" r="5"/>
                                         <path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
                                     </svg>
-                                    <span>Light</span>
+                                    <span>浅色</span>
                                 </button>
                                 <button class="theme-option" data-theme="system">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -366,26 +366,26 @@
                                         <line x1="8" y1="21" x2="16" y2="21"/>
                                         <line x1="12" y1="17" x2="12" y2="21"/>
                                     </svg>
-                                    <span>System</span>
+                                    <span>跟随系统</span>
                                 </button>
                             </div>
                         </div>
                     </div>
 
                     <div class="settings-section glass-card">
-                        <h3>Query Defaults</h3>
+                        <h3>问答默认设置</h3>
                         <div class="setting-row">
                             <div class="setting-info">
-                                <label>Default Query Mode</label>
-                                <p>Set the default mode for new queries</p>
+                                <label>默认检索模式</label>
+                                <p>设置新问题默认使用的检索方式</p>
                             </div>
                             <div class="select-wrapper">
                                 <select id="defaultModeSelect">
-                                    <option value="mix" selected>Mix (Recommended)</option>
-                                    <option value="local">Local</option>
-                                    <option value="global">Global</option>
-                                    <option value="hybrid">Hybrid</option>
-                                    <option value="naive">Naive</option>
+                                    <option value="mix" selected>混合模式（推荐）</option>
+                                    <option value="local">局部检索</option>
+                                    <option value="global">全局检索</option>
+                                    <option value="hybrid">向量+图谱</option>
+                                    <option value="naive">基础向量检索</option>
                                 </select>
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <polyline points="6 9 12 15 18 9"/>
@@ -394,8 +394,8 @@
                         </div>
                         <div class="setting-row">
                             <div class="setting-info">
-                                <label>Streaming Output</label>
-                                <p>Show answers as they're generated</p>
+                                <label>流式输出</label>
+                                <p>生成过程中实时展示回答内容</p>
                             </div>
                             <label class="toggle">
                                 <input type="checkbox" id="streamingToggle" checked>
@@ -405,47 +405,47 @@
                     </div>
 
                     <div class="settings-section glass-card">
-                        <h3>System Information</h3>
+                        <h3>系统信息</h3>
                         <div class="system-info" id="systemInfo">
                             <div class="info-row">
-                                <span class="info-label">Backend Status</span>
-                                <span class="info-value status-badge" id="backendStatus">Checking...</span>
+                                <span class="info-label">后端状态</span>
+                                <span class="info-value status-badge" id="backendStatus">检查中...</span>
                             </div>
                             <div class="info-row">
-                                <span class="info-label">LLM Provider</span>
+                                <span class="info-label">LLM 提供方</span>
                                 <span class="info-value" id="llmProvider">-</span>
                             </div>
                             <div class="info-row">
-                                <span class="info-label">Embedding Model</span>
+                                <span class="info-label">Embedding 模型</span>
                                 <span class="info-value" id="embeddingModel">-</span>
                             </div>
                             <div class="info-row">
-                                <span class="info-label">Vector Database</span>
+                                <span class="info-label">向量数据库</span>
                                 <span class="info-value" id="vectorDbStatus">-</span>
                             </div>
                             <div class="info-row">
-                                <span class="info-label">Graph Database</span>
+                                <span class="info-label">图数据库</span>
                                 <span class="info-value" id="graphDbStatus">-</span>
                             </div>
                         </div>
                     </div>
 
                     <div class="settings-section glass-card danger-zone">
-                        <h3>Data Management</h3>
+                        <h3>数据管理</h3>
                         <div class="danger-actions">
                             <button class="btn btn-outline-danger" id="clearAllDocsBtn">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <polyline points="3 6 5 6 21 6"/>
                                     <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
                                 </svg>
-                                Clear All Documents
+                                清空全部文档
                             </button>
                             <button class="btn btn-outline-danger" id="resetGraphBtn">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <polyline points="23 4 23 10 17 10"/>
                                     <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
                                 </svg>
-                                Reset Knowledge Graph
+                                重置知识图谱
                             </button>
                         </div>
                     </div>
@@ -458,7 +458,7 @@
             <div class="status-left">
                 <span class="status-indicator" id="connectionStatus">
                     <span class="indicator-dot"></span>
-                    <span>Connected</span>
+                    <span>已连接</span>
                 </span>
             </div>
             <div class="status-right">
@@ -471,7 +471,7 @@
                     <span class="status-value" id="neo4jStatus">-</span>
                 </span>
                 <span class="status-item">
-                    <span class="status-label">Documents</span>
+                    <span class="status-label">文档</span>
                     <span class="status-value" id="totalDocsCount">0</span>
                 </span>
             </div>
@@ -485,7 +485,7 @@
     <div class="modal-overlay" id="confirmModal">
         <div class="modal-dialog glass-card">
             <div class="modal-header">
-                <h3 id="confirmModalTitle">Confirm</h3>
+                <h3 id="confirmModalTitle">确认操作</h3>
                 <button class="modal-close" id="confirmModalClose">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <line x1="18" y1="6" x2="6" y2="18"/>
@@ -494,11 +494,11 @@
                 </button>
             </div>
             <div class="modal-body" id="confirmModalBody">
-                Are you sure?
+                确定要继续吗？
             </div>
             <div class="modal-footer">
-                <button class="btn btn-ghost" id="confirmModalCancel">Cancel</button>
-                <button class="btn btn-danger" id="confirmModalConfirm">Confirm</button>
+                <button class="btn btn-ghost" id="confirmModalCancel">取消</button>
+                <button class="btn btn-danger" id="confirmModalConfirm">确认</button>
             </div>
         </div>
     </div>
@@ -507,7 +507,7 @@
     <div class="modal-overlay" id="docModal">
         <div class="modal-dialog glass-card modal-lg">
             <div class="modal-header">
-                <h3 id="docModalTitle">Document Details</h3>
+                <h3 id="docModalTitle">文档详情</h3>
                 <button class="modal-close" id="docModalClose">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <line x1="18" y1="6" x2="6" y2="18"/>
@@ -523,14 +523,14 @@
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/vis-network@9.1.2/dist/vis-network.min.js"></script>
-    <script src="/static/assets/js/config.js"></script>
-    <script src="/static/assets/js/theme.js"></script>
-    <script src="/static/assets/js/utils.js"></script>
-    <script src="/static/assets/js/api.js"></script>
-    <script src="/static/assets/js/documents.js"></script>
-    <script src="/static/assets/js/query.js"></script>
-    <script src="/static/assets/js/graph.js"></script>
-    <script src="/static/assets/js/settings.js"></script>
-    <script src="/static/assets/js/app.js"></script>
+    <script src="/static/assets/js/config.js?v=zh-cn-1"></script>
+    <script src="/static/assets/js/theme.js?v=zh-cn-1"></script>
+    <script src="/static/assets/js/utils.js?v=zh-cn-1"></script>
+    <script src="/static/assets/js/api.js?v=zh-cn-1"></script>
+    <script src="/static/assets/js/documents.js?v=zh-cn-1"></script>
+    <script src="/static/assets/js/query.js?v=zh-cn-1"></script>
+    <script src="/static/assets/js/graph.js?v=zh-cn-1"></script>
+    <script src="/static/assets/js/settings.js?v=zh-cn-1"></script>
+    <script src="/static/assets/js/app.js?v=zh-cn-1"></script>
 </body>
 </html>

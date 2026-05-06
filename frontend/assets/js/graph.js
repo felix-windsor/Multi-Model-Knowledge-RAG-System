@@ -85,7 +85,7 @@ const GraphManager = {
 
         } catch (error) {
             console.error('Failed to load graph:', error);
-            Toast.error('Failed to load knowledge graph');
+            Toast.error('加载知识图谱失败');
         } finally {
             if (loading) loading.classList.add('hidden');
         }
@@ -258,8 +258,8 @@ const GraphManager = {
 
             return {
                 direction: isOutgoing ? '→' : '←',
-                label: edge.label || 'related to',
-                target: targetNode?.label || 'Unknown',
+                label: edge.label || '相关',
+                target: targetNode?.label || '未知实体',
                 targetId,
             };
         });
@@ -269,14 +269,14 @@ const GraphManager = {
         content.innerHTML = `
             <div class="node-label">${escapeHtml(node.label)}</div>
             <div class="node-type" style="background: ${typeColor}20; color: ${typeColor};">
-                ${node.type || 'Entity'}
+                ${node.type || '实体'}
             </div>
             ${node.description ? `
                 <div class="node-description">${escapeHtml(node.description)}</div>
             ` : ''}
             ${relations.length > 0 ? `
                 <div class="node-relations">
-                    <h4>Relations (${relations.length})</h4>
+                    <h4>关联关系（${relations.length}）</h4>
                     ${relations.slice(0, 10).map(r => `
                         <div class="relation-item" data-target-id="${r.targetId}">
                             <span class="relation-arrow">${r.direction}</span>
@@ -286,14 +286,14 @@ const GraphManager = {
                     `).join('')}
                     ${relations.length > 10 ? `
                         <div class="relation-item" style="color: var(--text-muted);">
-                            ... and ${relations.length - 10} more
+                            还有 ${relations.length - 10} 条关系
                         </div>
                     ` : ''}
                 </div>
             ` : ''}
             <div style="margin-top: var(--space-4);">
                 <button class="btn btn-primary btn-sm" id="queryNodeBtn">
-                    Query this entity
+                    询问该实体
                 </button>
             </div>
         `;
@@ -319,7 +319,7 @@ const GraphManager = {
             // Switch to query tab and pre-fill
             const queryInput = document.getElementById('queryInput');
             if (queryInput) {
-                queryInput.value = `Tell me about "${node.label}"`;
+                queryInput.value = `请介绍一下“${node.label}”`;
             }
             // Switch tab
             document.querySelector('.tab-btn[data-tab="query"]')?.click();

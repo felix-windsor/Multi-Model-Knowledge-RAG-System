@@ -32,31 +32,31 @@ const API_ENDPOINTS = {
 const API = API_ENDPOINTS.v1;
 
 const QUERY_MODES = {
-    mix: { label: 'Mix (Recommended)', description: 'Combines local and global search' },
-    local: { label: 'Local', description: 'Focus on specific entities' },
-    global: { label: 'Global', description: 'Broader context search' },
-    hybrid: { label: 'Hybrid', description: 'Vector + graph search' },
-    naive: { label: 'Naive', description: 'Simple vector search' },
+    mix: { label: '混合模式（推荐）', description: '结合局部实体和全局关系检索' },
+    local: { label: '局部检索', description: '聚焦特定实体及其上下文' },
+    global: { label: '全局检索', description: '面向更广范围的关系检索' },
+    hybrid: { label: '向量+图谱', description: '结合向量检索与图谱检索' },
+    naive: { label: '基础向量检索', description: '仅使用基础向量检索' },
 };
 
 const STATUS_CONFIG = {
     pending: {
-        label: 'Pending',
+        label: '等待中',
         class: 'status-warning',
         color: 'var(--warning)',
     },
     processing: {
-        label: 'Processing',
+        label: '处理中',
         class: 'status-processing',
         color: 'var(--info)',
     },
     completed: {
-        label: 'Completed',
+        label: '已完成',
         class: 'status-success',
         color: 'var(--success)',
     },
     failed: {
-        label: 'Failed',
+        label: '失败',
         class: 'status-error',
         color: 'var(--error)',
     },

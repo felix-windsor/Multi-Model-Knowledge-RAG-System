@@ -210,30 +210,30 @@ function formatDate(dateString) {
 
     // Less than a minute
     if (diff < 60000) {
-        return 'Just now';
+        return '刚刚';
     }
 
     // Less than an hour
     if (diff < 3600000) {
         const mins = Math.floor(diff / 60000);
-        return `${mins}m ago`;
+        return `${mins} 分钟前`;
     }
 
     // Less than a day
     if (diff < 86400000) {
         const hours = Math.floor(diff / 3600000);
-        return `${hours}h ago`;
+        return `${hours} 小时前`;
     }
 
     // Less than a week
     if (diff < 604800000) {
         const days = Math.floor(diff / 86400000);
-        return days === 1 ? 'Yesterday' : `${days}d ago`;
+        return days === 1 ? '昨天' : `${days} 天前`;
     }
 
     // Default to date format
-    return date.toLocaleDateString('en-US', {
-        month: 'short',
+    return date.toLocaleDateString('zh-CN', {
+        month: 'long',
         day: 'numeric',
         year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
     });
@@ -241,15 +241,15 @@ function formatDate(dateString) {
 
 function formatDuration(seconds) {
     if (seconds < 1) {
-        return `${Math.round(seconds * 1000)}ms`;
+        return `${Math.round(seconds * 1000)} 毫秒`;
     }
     if (seconds < 60) {
-        return `${seconds.toFixed(1)}s`;
+        return `${seconds.toFixed(1)} 秒`;
     }
 
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
-    return `${mins}m ${secs}s`;
+    return `${mins} 分 ${secs} 秒`;
 }
 
 function truncateText(text, maxLength = 100) {
@@ -288,11 +288,11 @@ function markdownToHtml(text) {
 async function copyToClipboard(text) {
     try {
         await navigator.clipboard.writeText(text);
-        Toast.success('Copied to clipboard');
+        Toast.success('已复制到剪贴板');
         return true;
     } catch (error) {
         console.error('Failed to copy:', error);
-        Toast.error('Failed to copy to clipboard');
+        Toast.error('复制到剪贴板失败');
         return false;
     }
 }
