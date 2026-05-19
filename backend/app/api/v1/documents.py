@@ -1,5 +1,6 @@
 """V1 文档管理 API（重构版 - 使用 Service DI）"""
 
+import asyncio
 import os
 from typing import Optional
 from uuid import UUID
@@ -26,11 +27,24 @@ from app.middleware.auth import verify_api_key
 from app.middleware.response import ErrorCode, wrap_response
 from app.models.response import V1DocumentData, V1DocumentListData, V1UploadData
 from app.services.document_service import DocumentService
+from app.services.extraction_sidecar_service import ExtractionSidecarService
 from app.services.task_service import TaskService
 from app.services.webhook_service import WebhookService
 from app.storage.models import DocumentStatus, TaskStatus
 
 router = APIRouter()
+
+_processing_semaphores: dict[tuple[int, int], asyncio.Semaphore] = {}
+
+
+def _get_document_processing_semaphore(max_concurrent_tasks: int) -> asyncio.Semaphore:
+    limit = max(1, int(max_concurrent_tasks))
+    loop_id = id(asyncio.get_running_loop())
+    key = (loop_id, limit)
+    if key not in _processing_semaphores:
+        _processing_semaphores[key] = asyncio.Semaphore(limit)
+    return _processing_semaphores[key]
+
 
 # 允许的文件扩展名
 ALLOWED_EXTENSIONS = [
@@ -56,6 +70,9 @@ async def process_document_with_callback(
     callback_url: Optional[str],
     task_svc: TaskService,
     webhook_svc: WebhookService,
+    extraction_sidecar_enabled: bool = False,
+    extraction_sidecar_max_chars: int = 1200,
+    max_concurrent_tasks: int = 50,
 ):
     """
     处理文档并发送回调（后台任务）
@@ -68,7 +85,55 @@ async def process_document_with_callback(
         callback_url: 回调 URL
         task_svc: TaskService 实例
         webhook_svc: WebhookService 实例
+        max_concurrent_tasks: 最大后台解析任务并发数
     """
+    try:
+        semaphore = _get_document_processing_semaphore(max_concurrent_tasks)
+        await task_svc.update_progress(task_id, 1, "等待文档处理并发槽位")
+
+        async with semaphore:
+            await _process_document_with_callback_locked(
+                rag=rag,
+                doc_id=doc_id,
+                task_id=task_id,
+                file_path=file_path,
+                callback_url=callback_url,
+                task_svc=task_svc,
+                webhook_svc=webhook_svc,
+                extraction_sidecar_enabled=extraction_sidecar_enabled,
+                extraction_sidecar_max_chars=extraction_sidecar_max_chars,
+            )
+
+    except Exception as e:
+        error_message = str(e)
+
+        # 标记任务失败
+        await task_svc.fail_task(task_id, error_message)
+
+        # 发送失败回调
+        if callback_url:
+            await webhook_svc.deliver_document_event(
+                doc_id,
+                "document.failed",
+                {
+                    "status": "failed",
+                    "error_message": error_message,
+                },
+            )
+
+
+async def _process_document_with_callback_locked(
+    rag,
+    doc_id: UUID,
+    task_id: UUID,
+    file_path: str,
+    callback_url: Optional[str],
+    task_svc: TaskService,
+    webhook_svc: WebhookService,
+    extraction_sidecar_enabled: bool,
+    extraction_sidecar_max_chars: int,
+):
+    """Run document processing after the concurrency slot has been acquired."""
     try:
         # 启动任务
         await task_svc.start_task(task_id)
@@ -101,14 +166,33 @@ async def process_document_with_callback(
         except Exception:
             pass
 
+        extraction_sidecar = None
+        if extraction_sidecar_enabled:
+            await task_svc.update_progress(task_id, 92, "正在生成抽取质量报告")
+            try:
+                extraction_sidecar = await ExtractionSidecarService(
+                    max_chars=extraction_sidecar_max_chars
+                ).run_for_document(
+                    rag,
+                    file_path,
+                    parse_kwargs={"formula": False},
+                )
+            except Exception as sidecar_error:
+                extraction_sidecar = {
+                    "enabled": True,
+                    "status": "failed",
+                    "error_message": str(sidecar_error),
+                }
+
         # 完成任务
-        await task_svc.complete_task(
-            task_id,
-            result={
-                "entities_count": entities_count,
-                "relations_count": relations_count,
-            },
-        )
+        result = {
+            "entities_count": entities_count,
+            "relations_count": relations_count,
+        }
+        if extraction_sidecar is not None:
+            result["extraction_sidecar"] = extraction_sidecar
+
+        await task_svc.complete_task(task_id, result=result)
 
         # 发送 Webhook 回调
         if callback_url:
@@ -208,6 +292,9 @@ async def upload_document(
             callback_url,
             task_svc,
             webhook_svc,
+            settings.custom_graph_extraction_enabled,
+            settings.custom_graph_extraction_max_chars,
+            settings.document_processing_max_concurrent_tasks,
         )
 
         return wrap_response(

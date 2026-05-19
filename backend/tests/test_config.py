@@ -16,6 +16,14 @@ def test_local_storage_config_valid():
         validate_storage_config("local", settings)
 
 
+def test_document_processing_concurrency_default_is_50():
+    """Test document processing concurrency is enterprise-ready by default."""
+    with patch.dict(os.environ, {}, clear=True):
+        settings = Settings()
+
+        assert settings.document_processing_max_concurrent_tasks == 50
+
+
 def test_qdrant_neo4j_config_missing_params():
     """Test qdrant_neo4j config validation fails when params missing"""
     with patch.dict(os.environ, {"STORAGE_BACKEND": "qdrant_neo4j"}, clear=True):

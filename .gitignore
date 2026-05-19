@@ -113,6 +113,7 @@ output*/
 data/uploads/*
 data/storage/*
 data/output/*
+data/full_online_*
 !data/uploads/.gitkeep
 !data/storage/.gitkeep
 !data/output/.gitkeep
