@@ -1,6 +1,0 @@
-{
-  "skills": [
-    "./skills/skill-creator",
-    "../skills/rag-document-processor"
-  ]
-}

@@ -49,6 +49,15 @@ temp/
 .codex/
 .agents/
 
+# Local agent / IDE config (private to dev workflow)
+.claude/
+.claude-plugin/
+.codex/
+.cursor/
+.aider*
+CLAUDE.md
+AGENTS.md
+
 # Private career / interview notes
 docs/career/
 
