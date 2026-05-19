@@ -1,4 +1,4 @@
-# Enterprise 200x420 Combined Corpus
+# Synthetic Controlled 200x420 Combined Corpus
 
 本文件由 200 份合成脱敏企业文档拼接生成，用于现有 API benchmark 脚本一次性上传测试。
 

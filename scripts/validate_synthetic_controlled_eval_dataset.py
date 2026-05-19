@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the generated enterprise_200x420 evaluation dataset."""
+"""Validate the generated synthetic_controlled_200x420 evaluation dataset."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from pathlib import Path
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
-DATASET_DIR = ROOT_DIR / "benchmarks" / "enterprise_200x420"
+DATASET_DIR = ROOT_DIR / "benchmarks" / "synthetic_controlled_200x420"
 
 EXPECTED_DOC_TYPES = {
     "technical_manual": 70,
@@ -31,10 +31,10 @@ EXPECTED_QUERY_TYPES = {
 def main() -> None:
     manifest = json.loads((DATASET_DIR / "manifest.json").read_text(encoding="utf-8"))
     cases = json.loads(
-        (DATASET_DIR / "eval_cases.enterprise_200x420.json").read_text(encoding="utf-8")
+        (DATASET_DIR / "eval_cases.synthetic_controlled_200x420.json").read_text(encoding="utf-8")
     )
     api_cases = json.loads(
-        (DATASET_DIR / "api_benchmark_cases.enterprise_200x420.json").read_text(
+        (DATASET_DIR / "api_benchmark_cases.synthetic_controlled_200x420.json").read_text(
             encoding="utf-8"
         )
     )
@@ -45,7 +45,7 @@ def main() -> None:
     assert Counter(doc["type"] for doc in documents.values()) == EXPECTED_DOC_TYPES
     assert Counter(case["question_type"] for case in cases["cases"]) == EXPECTED_QUERY_TYPES
     assert len(api_cases["queries"]) == 420
-    assert api_cases["document"] == "benchmarks/enterprise_200x420/combined_corpus.md"
+    assert api_cases["document"] == "benchmarks/synthetic_controlled_200x420/combined_corpus.md"
     assert (DATASET_DIR / "combined_corpus.md").exists()
 
     for doc in documents.values():
@@ -57,7 +57,7 @@ def main() -> None:
         assert case["doc_id"] in documents
         assert case["expected_keywords"]
 
-    print("enterprise_200x420 dataset validation passed")
+    print("synthetic_controlled_200x420 dataset validation passed")
 
 
 if __name__ == "__main__":

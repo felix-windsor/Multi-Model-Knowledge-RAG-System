@@ -1,5 +1,5 @@
 {
-  "name": "enterprise_200x420",
+  "name": "synthetic_controlled_200x420",
   "description": "Synthetic desensitized enterprise document evaluation dataset for RAG demos.",
   "document_count": 200,
   "query_count": 420,

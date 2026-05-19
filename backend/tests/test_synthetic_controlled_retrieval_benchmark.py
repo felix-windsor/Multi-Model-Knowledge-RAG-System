@@ -1,7 +1,11 @@
 import json
+import sys
 from pathlib import Path
 
-from scripts.evaluate_enterprise_retrieval import (
+ROOT_DIR = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT_DIR))
+
+from scripts.evaluate_synthetic_controlled_retrieval import (
     DocumentRecord,
     EvalCase,
     evaluate_cases,

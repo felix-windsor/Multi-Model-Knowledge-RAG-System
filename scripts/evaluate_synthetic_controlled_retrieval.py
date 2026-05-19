@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Offline retrieval benchmark for the enterprise_200x420 dataset.
+"""Offline retrieval benchmark for the synthetic_controlled_200x420 dataset.
 
 This script intentionally avoids external model calls. It measures whether the
 retrieved context or structured KG-style answer contains the expected keywords,
@@ -20,7 +20,7 @@ from typing import Any
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
-DEFAULT_DATASET_DIR = ROOT_DIR / "benchmarks" / "enterprise_200x420"
+DEFAULT_DATASET_DIR = ROOT_DIR / "benchmarks" / "synthetic_controlled_200x420"
 DEFAULT_OUTPUT_DIR = ROOT_DIR / "benchmark_reports"
 
 
@@ -296,7 +296,7 @@ def main() -> int:
 
     dataset_dir = args.dataset_dir if args.dataset_dir.is_absolute() else ROOT_DIR / args.dataset_dir
     manifest_path = args.manifest or dataset_dir / "manifest.json"
-    cases_path = args.cases or dataset_dir / "eval_cases.enterprise_200x420.json"
+    cases_path = args.cases or dataset_dir / "eval_cases.synthetic_controlled_200x420.json"
     output_dir = args.output_dir if args.output_dir.is_absolute() else ROOT_DIR / args.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
 

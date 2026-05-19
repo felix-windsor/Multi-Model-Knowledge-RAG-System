@@ -10,7 +10,7 @@ from pathlib import Path
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
-DATASET_DIR = ROOT_DIR / "benchmarks" / "enterprise_200x420"
+DATASET_DIR = ROOT_DIR / "benchmarks" / "synthetic_controlled_200x420"
 
 
 @dataclass(frozen=True)
@@ -133,7 +133,7 @@ def main() -> None:
         doc_path.write_text(render_document(document), encoding="utf-8")
 
     manifest = {
-        "name": "enterprise_200x420",
+        "name": "synthetic_controlled_200x420",
         "description": "Synthetic desensitized enterprise document evaluation dataset for RAG demos.",
         "document_count": len(documents),
         "query_count": len(cases),
@@ -148,18 +148,18 @@ def main() -> None:
         json.dumps(manifest, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
-    (DATASET_DIR / "eval_cases.enterprise_200x420.json").write_text(
-        json.dumps({"dataset": "enterprise_200x420", "cases": cases}, ensure_ascii=False, indent=2),
+    (DATASET_DIR / "eval_cases.synthetic_controlled_200x420.json").write_text(
+        json.dumps({"dataset": "synthetic_controlled_200x420", "cases": cases}, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
     (DATASET_DIR / "combined_corpus.md").write_text(
         render_combined_corpus(documents),
         encoding="utf-8",
     )
-    (DATASET_DIR / "api_benchmark_cases.enterprise_200x420.json").write_text(
+    (DATASET_DIR / "api_benchmark_cases.synthetic_controlled_200x420.json").write_text(
         json.dumps(
             {
-                "document": "benchmarks/enterprise_200x420/combined_corpus.md",
+                "document": "benchmarks/synthetic_controlled_200x420/combined_corpus.md",
                 "queries": [
                     {
                         "question": case["question"],
@@ -339,7 +339,7 @@ def build_case(case_index: int, question_type: str, doc: DocSpec) -> dict:
 
 def render_combined_corpus(documents: list[DocSpec]) -> str:
     sections = [
-        "# Enterprise 200x420 Combined Corpus",
+        "# Synthetic Controlled 200x420 Combined Corpus",
         "",
         "本文件由 200 份合成脱敏企业文档拼接生成，用于现有 API benchmark 脚本一次性上传测试。",
         "",
@@ -351,7 +351,7 @@ def render_combined_corpus(documents: list[DocSpec]) -> str:
 
 
 def render_readme() -> str:
-    return """# Enterprise 200x420 RAG Evaluation Dataset
+    return """# Synthetic Controlled 200x420 RAG Evaluation Dataset
 
 This dataset is synthetic and desensitized. It is designed to simulate enterprise
 intranet documents for RAG pipeline evaluation without containing confidential data.
@@ -366,8 +366,8 @@ intranet documents for RAG pipeline evaluation without containing confidential d
 ## Files
 
 - `manifest.json`: document inventory and distribution
-- `eval_cases.enterprise_200x420.json`: query cases and expected keywords
-- `api_benchmark_cases.enterprise_200x420.json`: compatible input for `scripts/run_api_benchmark.py`
+- `eval_cases.synthetic_controlled_200x420.json`: query cases and expected keywords
+- `api_benchmark_cases.synthetic_controlled_200x420.json`: compatible input for `scripts/run_api_benchmark.py`
 - `combined_corpus.md`: all 200 documents concatenated for one-shot API benchmark runs
 - `documents/`: markdown documents grouped by type
 
