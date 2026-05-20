@@ -7,7 +7,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from pathlib import Path
-from app.api import routes
 from app.api.v1 import router as v1_router
 from app.config import settings
 from app.middleware.response import wrap_response, ErrorCode
@@ -103,10 +102,6 @@ if frontend_path.exists():
 
 # 注册 V1 API 路由
 app.include_router(v1_router, prefix="/api/v1")
-
-# 注册旧版 API 路由（向后兼容，标记为 deprecated）
-app.include_router(routes.router, prefix="/api", deprecated=True)
-
 
 @app.get("/")
 async def root():

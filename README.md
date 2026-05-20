@@ -336,3 +336,20 @@ MIT License
 - [LightRAG](https://github.com/HKUDS/LightRAG)
 - [RAGAnything](https://github.com/HKUDS/RAGAnything)
 - [vis.js](https://visjs.org/)
+
+## 快速启动
+
+```bash
+# 1. 安装后端依赖
+pip install -r backend/requirements.txt
+
+# 2. 准备根目录 .env，并填写 LLM_PROVIDER / LLM_MODEL / LLM_API_KEY / LLM_BASE_URL
+cp env.example .env
+
+# 3. 如使用 Qdrant + Neo4j 存储，先启动外部服务
+docker compose up -d qdrant neo4j
+
+# 启动集成前端的 FastAPI 服务
+cd backend
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+```
