@@ -275,6 +275,11 @@ def main() -> int:
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     parser.add_argument("--max-wait-s", type=int, default=900)
     parser.add_argument("--poll-interval-s", type=float, default=2.0)
+    parser.add_argument(
+        "--api-key",
+        default=None,
+        help="Optional X-API-Key value. Defaults to the first API_KEYS value from .env.",
+    )
     args = parser.parse_args()
 
     cases_path = args.cases if args.cases.is_absolute() else REPO_ROOT / args.cases
@@ -287,6 +292,9 @@ def main() -> int:
         return 2
 
     env = load_dotenv(REPO_ROOT / ".env")
+    api_key = args.api_key
+    if api_key is None and env.get("API_KEYS"):
+        api_key = env["API_KEYS"].split(",", 1)[0].strip()
     output_dir = args.output_dir if args.output_dir.is_absolute() else REPO_ROOT / args.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
     run_id = datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:8]
@@ -314,7 +322,8 @@ def main() -> int:
         "graph": {},
     }
 
-    with httpx.Client(timeout=timeout, trust_env=False) as client:
+    headers = {"X-API-Key": api_key} if api_key else None
+    with httpx.Client(timeout=timeout, trust_env=False, headers=headers) as client:
         health_start = time.perf_counter()
         health = client.get(f"{args.base_url}/api/v1/health")
         report["health"] = parse_response(health, time.perf_counter() - health_start).__dict__

@@ -1,6 +1,6 @@
 """Test storage health checks"""
 import pytest
-from unittest.mock import AsyncMock, Mock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 from app.dependencies import check_storage_health
 from app.config import Settings
 
@@ -58,18 +58,11 @@ async def test_neo4j_health_check_success():
         neo4j_password="password"
     )
 
-    # Mock the neo4j module import (use MagicMock for context manager support)
-    mock_neo4j = MagicMock()
-    mock_driver = MagicMock()
-    mock_session = MagicMock()
-    mock_result = MagicMock()
+    with patch("httpx.AsyncClient") as mock_client:
+        mock_response = AsyncMock()
+        mock_response.status_code = 200
+        mock_client.return_value.__aenter__.return_value.get.return_value = mock_response
 
-    mock_result.single.return_value = [1]
-    mock_session.__enter__.return_value.run.return_value = mock_result
-    mock_driver.session.return_value = mock_session
-    mock_neo4j.GraphDatabase.driver.return_value = mock_driver
-
-    with patch.dict('sys.modules', {'neo4j': mock_neo4j}):
         health = await check_storage_health("qdrant_neo4j", settings)
         assert health["neo4j"] is True
 
@@ -84,10 +77,8 @@ async def test_neo4j_health_check_failure():
         neo4j_password="password"
     )
 
-    # Mock the neo4j module import to raise an exception
-    mock_neo4j = MagicMock()
-    mock_neo4j.GraphDatabase.driver.side_effect = Exception("Connection refused")
+    with patch("httpx.AsyncClient") as mock_client:
+        mock_client.return_value.__aenter__.return_value.get.side_effect = Exception("Connection refused")
 
-    with patch.dict('sys.modules', {'neo4j': mock_neo4j}):
         health = await check_storage_health("qdrant_neo4j", settings)
         assert health["neo4j"] is False

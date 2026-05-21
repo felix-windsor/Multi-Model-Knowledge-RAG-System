@@ -113,6 +113,7 @@ output*/
 data/uploads/*
 data/storage/*
 data/output/*
+data/full_online_*
 !data/uploads/.gitkeep
 !data/storage/.gitkeep
 !data/output/.gitkeep
@@ -146,3 +147,8 @@ backend/proposal/
 memory-bank/
 .worktrees/
 .trees/
+
+# benchmarks 评测资产强制纳入版本控制
+!benchmarks/enterprise_project_docs/**
+!benchmarks/enterprise_project_docs/**/*.md
+!benchmarks/enterprise_project_docs/**/*.json

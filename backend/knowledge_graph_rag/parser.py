@@ -1189,13 +1189,9 @@ class MineruParser(Parser):
             List[Dict[str, Any]]: List of content blocks
         """
         try:
-            # Convert text file to PDF using base class method
-            pdf_path = self.convert_text_to_pdf(text_path, output_dir)
-
-            # Parse the converted PDF
-            return self.parse_pdf(
-                pdf_path=pdf_path, output_dir=output_dir, lang=lang, **kwargs
-            )
+            text_path = Path(text_path)
+            text = text_path.read_text(encoding="utf-8")
+            return [{"type": "text", "text": text, "page_idx": 0}]
 
         except Exception as e:
             self.logger.error(f"Error in parse_text_file: {str(e)}")

@@ -55,11 +55,14 @@ class Settings(BaseSettings):
     # 文档处理配置
     # ============================================
     max_concurrent_files: int = 2
+    document_processing_max_concurrent_tasks: int = 50
+    custom_graph_extraction_enabled: bool = False
+    custom_graph_extraction_max_chars: int = 1200
 
     # ============================================
     # Performance Tuning Configuration
     # ============================================
-    embedding_batch_num: int = 20  # LightRAG batch processing size
+    embedding_batch_num: int = 10  # DashScope text-embedding-v4 rejects batches larger than 10
     embedding_func_max_async: int = 16  # LightRAG max async concurrency
     embedding_max_workers: int = 4  # Thread pool workers (for Ollama)
     embedding_cache_enabled: bool = True  # Enable embedding cache

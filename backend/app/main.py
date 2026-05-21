@@ -7,7 +7,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from pathlib import Path
-from app.api import routes
 from app.api.v1 import router as v1_router
 from app.config import settings
 from app.middleware.response import wrap_response, ErrorCode
@@ -66,10 +65,6 @@ app = FastAPI(
         {"name": "V1 - Knowledge Graph", "description": "知识图谱 API"},
         {"name": "V1 - Tasks", "description": "任务管理 API"},
         {"name": "V1 - Config & Health", "description": "配置和健康检查"},
-        {"name": "upload", "description": "旧版上传 API (deprecated)"},
-        {"name": "documents", "description": "旧版文档 API (deprecated)"},
-        {"name": "query", "description": "旧版查询 API (deprecated)"},
-        {"name": "graph", "description": "旧版图谱 API (deprecated)"},
     ]
 )
 
@@ -103,10 +98,6 @@ if frontend_path.exists():
 
 # 注册 V1 API 路由
 app.include_router(v1_router, prefix="/api/v1")
-
-# 注册旧版 API 路由（向后兼容，标记为 deprecated）
-app.include_router(routes.router, prefix="/api", deprecated=True)
-
 
 @app.get("/")
 async def root():

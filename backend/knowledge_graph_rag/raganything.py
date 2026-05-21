@@ -234,15 +234,14 @@ class RAGAnything(QueryMixin, ProcessorMixin, BatchMixin):
             # Check parser installation first
             if not self._parser_installation_checked:
                 if not self.doc_parser.check_installation():
-                    error_msg = (
+                    warning_msg = (
                         f"Parser '{self.config.parser}' is not properly installed. "
-                        "Please install it using 'pip install' or 'uv pip install'."
+                        "PDF/image/Office parsing may fail, but text formats can still be processed."
                     )
-                    self.logger.error(error_msg)
-                    return {"success": False, "error": error_msg}
+                    self.logger.warning(warning_msg)
 
                 self._parser_installation_checked = True
-                self.logger.info(f"Parser '{self.config.parser}' installation verified")
+                self.logger.info(f"Parser '{self.config.parser}' installation check complete")
 
             if self.lightrag is not None:
                 # LightRAG was pre-provided, but we need to ensure it's properly initialized
