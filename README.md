@@ -133,9 +133,9 @@ data/
 ## 评估资产
 
 - `benchmarks/synthetic_controlled_200x420/`：200 篇合成/脱敏企业文档和 420 条评测问题，覆盖技术手册、流程制度、API 配置、表格台账、扫描图示 5 类资料。
-- `benchmarks/changsha_jingjia_public_multiformat_200/`：200 篇长沙景嘉微及相关公开多格式文档清单，覆盖 PDF、DOC、DOCX、XLS、XLSX、CSV、HTML；原始文件位于 ignored 的 `data/full_online_changsha_jingjia_eval_20260519/`。
+- `benchmarks/enterprise_project_docs/`：200 篇公开企业项目文档 markdown corpus，覆盖 PURE SRS、GitHub PRD 和技术博客 3 类来源，共约 35 万词，用于验证 closed schema 抽取和项目文档问答评估。
 - `scripts/evaluate_custom_extraction.py`：输出自研抽取核心的 JSON 解析成功率、schema 校验成功率、实体/关系 drift count、实体去重率、无效关系率、平均耗时和平均关系置信度。
-- `scripts/validate_public_multiformat_eval_dataset.py`：校验公开多格式 benchmark 的 manifest、格式分布、分类分布和本地 raw 文件完整性。
+- `scripts/validate_enterprise_project_docs_dataset.py`：校验公开企业项目文档 corpus 的 manifest、subset/category/language 分布和本地文件完整性。
 - `backend/tests/rag_core/test_extractor.py`：覆盖 JSON 修复、类型漂移兜底、实体合并、缺失端点降权等关键异常场景。
 - `backend/app/services/extraction_sidecar_service.py`：复用文档解析缓存，对上传文档生成 sidecar 抽取质量报告。
 

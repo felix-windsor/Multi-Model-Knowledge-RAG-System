@@ -65,10 +65,6 @@ app = FastAPI(
         {"name": "V1 - Knowledge Graph", "description": "知识图谱 API"},
         {"name": "V1 - Tasks", "description": "任务管理 API"},
         {"name": "V1 - Config & Health", "description": "配置和健康检查"},
-        {"name": "upload", "description": "旧版上传 API (deprecated)"},
-        {"name": "documents", "description": "旧版文档 API (deprecated)"},
-        {"name": "query", "description": "旧版查询 API (deprecated)"},
-        {"name": "graph", "description": "旧版图谱 API (deprecated)"},
     ]
 )
 

@@ -1,0 +1,116 @@
+最简单的工具：直接用编辑器 + 一个 markdown 表格
+不需要专业标注工具（doccano / brat / Label Studio 这些是 ML 训练用的，你这次是抽样 review，简单粗暴最快）。
+推荐工具组合
+编辑器：VSCode（你 MacBook 上肯定有）
+操作方式：左边开原文档，右边开你的标注 markdown，对照着填
+┌─────────────────────────┬─────────────────────────┐
+│  pure-001.md  (只读)    │  notes_pure-001.md      │
+│                         │  (你边读边填)            │
+│  # CCTNS 3. DESCRIPTION │                         │
+│  ## Registration        │  | 实体 | 类型 |        │
+│  Citizens can register..│  |------|------|        │
+│                         │  | Citizens | Ext... |  │
+└─────────────────────────┴─────────────────────────┘
+VSCode 操作：
+
+打开 pure-001.md
+Cmd+\（拆分编辑器）
+右边新建 notes_pure-001.md，开始填表
+
+标注模板（你直接复制到 notes 文件用）
+我帮你准备好了，对每一篇文档复制粘贴下面这段，然后边读边填：
+markdown# 标注: pure-001.md (CCTNS Registration/Investigation/Prosecution)
+
+## 第 1 步:通读印象
+
+通读一遍后,大致讲了什么(2-3 句话):
+> 这份文档是印度警务系统 CCTNS 的需求规格,描述了 Registration、 
+> Investigation、Prosecution、Search 四个模块及其交互...
+
+## 第 2 步:实体清单
+
+读到一个"重要名词"就填一行——不用穷尽,15-25 个就够。
+
+| # | 原文 | 我猜的类型 | 信心 | 备注 |
+|---|------|----------|------|------|
+| 1 | Registration Module | Module | 高 | 系统内的子单元 |
+| 2 | Citizens | ExternalActor | 高 | 系统外用户 |
+| 3 | Police personnel | Stakeholder | 高 | 内部角色 |
+| 4 | complaint | DataEntity | 中 | 数据对象?还是 Process? |
+| 5 | investigation process | Process | 高 | 一个工作流 |
+| 6 | CCTNS application | System | 高 | 整体系统 |
+| 7 | the courts | ExternalActor | 中 | 外部组织? |
+| ... | | | | |
+
+**Schema v2 的 15 类参考(填表时对照):**
+
+- 需求层: FunctionalRequirement / NonFunctionalRequirement / UserStory / AcceptanceCriteria
+- 系统层: System / Module / Interface / DataEntity
+- 角色层: Stakeholder / Team / ExternalActor
+- 流程层: Process / Decision / Constraint
+- 兜底: Other
+
+## 第 3 步:Other / 拿不准的
+
+哪些实体你**找不到合适的类**? 列出来:
+
+- "Search functionality" → 是 Module 还是 FunctionalRequirement?
+- "designated constable" → 是 Stakeholder 还是 Role?
+
+## 第 4 步:整体感觉
+
+- Schema v2 适配度: 高 / 中 / 低 — **中**
+- 主要问题: ???
+
+例如:
+> 大部分实体都能映射,但是 "Search functionality" / "Investigation Module" 
+> 这种既是模块又是功能的东西,Module vs FunctionalRequirement 边界不清。
+一个具体例子（我给你示范第一篇怎么做）
+我用 pure-001.md 的开头给你演示——你之后照葫芦画瓢就行：
+原文片段：
+
+Registration
+Citizens can register their complaints with police and then based on the evidence, facts and following investigation, police shall take the complaint forward. The Registration module acts as an interface between the police and citizens and it eases the approach, interaction and information exchange between police and complainants.
+
+读完这一段，我会标注：
+#原文我猜的类型信心备注1RegistrationModule高"Registration module" 明确说是 module2CitizensExternalActor高系统外的用户3complaintsDataEntity中业务数据对象4policeStakeholder高内部角色5evidenceDataEntity低是数据吗?还是兜底 Other?6investigationProcess高一个工作流7complainantsExternalActor高= Citizens 的同义8(Registration acts as) interfaceInterface高直接被叫 "interface"
+注意几个标注习惯：
+
+同一个实体重复出现只标一次——例如 Citizens 和 complainants 几乎是同义，第 7 行可以不标
+"信心"列别强求高——这恰恰是给我的信号：低信心的就是 schema 边界模糊处
+15-25 个就够，不用穷尽。目标是看 schema 适配度，不是做训练集
+
+流程时间分配
+每篇预计：
+
+通读：3-5 分钟
+标注 15-20 个实体：10-15 分钟
+写第 3-4 步感受：5 分钟
+
+前 4 篇加起来 ~2 小时，做完贴 4 份 notes 给我，我汇总分析。
+如果你真的想要一个稍微专业一点的工具
+可选项（不推荐你现在用，但你知道有这些东西）：
+
+Obsidian：你之前就在用，可以装 "Annotator" 插件做 PDF 标注，但 markdown 文件用这个杀鸡用牛刀
+Doccano：开源 NER 标注平台，要起 docker 服务，学习成本 1-2 小时
+Label Studio：同上，更重
+
+你这次是抽样 review，6 篇，我推荐就用 VSCode + markdown 表格。最快。
+一个关键提醒
+不要追求"标得对"。你的标注是给我一个信号，不是给系统训练数据。
+
+信心列写"低"就是好信号——告诉我 schema 边界模糊
+找不到合适的类就标 Other——告诉我 schema 缺类
+拿不准用哪个就标两个（"Module / FunctionalRequirement"）——告诉我两类需要区分
+
+标注的目的是发现 schema 的问题，不是证明 schema 完美。
+现在请做
+
+打开 VSCode
+拆分编辑器，左边 pure-001.md，右边新建 notes_pure-001.md
+把我上面的"标注模板"复制到右边
+通读一遍 pure-001.md（5 分钟）
+开始填表
+
+遇到任何拿不准的实体——直接贴原文给我，我帮你判断属于哪类。这种来回讨论才是最有价值的，比闷头自己标注好。
+第一篇做完，把 notes 贴给我看，我帮你 review 标得对不对、有没有遗漏。然后你再做第 2、3、4 篇会快很多。

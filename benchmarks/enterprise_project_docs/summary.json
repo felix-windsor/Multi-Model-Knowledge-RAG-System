@@ -1,0 +1,14 @@
+{
+  "total": 200,
+  "by_subset": {
+    "github_prd": 47,
+    "pure_srs": 120,
+    "tech_blog": 33
+  },
+  "by_language": {
+    "en": 163,
+    "zh": 37
+  },
+  "total_word_count": 349901,
+  "generated_at": "2026-05-20T07:12:58.825340+00:00"
+}
