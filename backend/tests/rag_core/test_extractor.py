@@ -1,10 +1,244 @@
+"""Tests for the custom rag_core extraction pipeline.
+
+After Step 2 (schema v2 + bilingual prompt + homonym fix), this suite locks
+in 7 invariants we want to guard for the long term:
+
+  A. v2 canonical types pass through canonicalize_* unchanged (no drift).
+  B. v2 alias tables map Chinese/English synonyms to canonical names;
+     unknown types fall back to 'Other' with the right drift_reason.
+  C. The extraction prompt is bilingual (EN + ZH directives coexist; type
+     listings use English canonical names, not the retired v1 Chinese).
+  D. The prompt presents entity types grouped by Tier A-E with tier-first
+     guidance, and every ENTITY_TYPES member belongs to some tier.
+  E. Same name + different type → preserved as separate homonym nodes
+     with a '[type]' disambiguation suffix; relations pointing at a
+     homonym are flagged 'homonym_ambiguous'.
+  F. Same-type near-duplicates / alias overlaps still merge into one node.
+  G. When no homonym conflict exists, names stay un-suffixed (defensive
+     guard against an over-eager homonym fix).
+
+The pipeline-orchestration tests at the bottom of this file exercise
+behaviors that only emerge from the full extractor (relation scoring,
+missing-endpoint detection, alias merging through the orchestrator).
+They use a fake_llm fixture as a *transport* — the assertions are about
+real downstream behavior of the orchestration layer, not about the LLM.
+"""
+
 import json
 
 import pytest
 
 from app.rag_core.extractor import ExtractionConfig, GraphRAGExtractor
 from app.rag_core.json_repair import repair_json_payload
-from app.rag_core.normalizer import normalize_entity_name
+from app.rag_core.normalizer import (
+    normalize_entities_and_relations,
+    normalize_entity_name,
+)
+from app.rag_core.prompts import _validate_tier_grouping, build_extraction_prompt
+from app.rag_core.schemas import (
+    Entity,
+    Relation,
+    canonicalize_entity_type,
+    canonicalize_relation_type,
+)
+
+
+# ────────────────────────────────────────────────────────────────────────
+# A. v2 canonical types pass through canonicalize_* unchanged
+# ────────────────────────────────────────────────────────────────────────
+
+
+def test_canonicalize_v2_entity_type_returns_canonical_directly():
+    """Schema v2: a canonical entity-type name returns unchanged, no drift."""
+    result, drift = canonicalize_entity_type("System")
+    assert result == "System"
+    assert drift is None
+
+
+def test_canonicalize_v2_relation_type_returns_canonical_directly():
+    """Schema v2: a canonical relation-type name returns unchanged, no drift."""
+    result, drift = canonicalize_relation_type("DependsOn")
+    assert result == "DependsOn"
+    assert drift is None
+
+
+# ────────────────────────────────────────────────────────────────────────
+# B. v2 alias mapping (Chinese / English / unknown fallback)
+# ────────────────────────────────────────────────────────────────────────
+
+
+def test_canonicalize_chinese_entity_alias_maps_to_v2_canonical():
+    """v2 alias table: Chinese '系统' → 'System' with drift='mapped_alias'."""
+    result, drift = canonicalize_entity_type("系统")
+    assert result == "System"
+    assert drift == "mapped_alias"
+
+
+def test_canonicalize_english_entity_alias_maps_to_v2_canonical():
+    """v2 alias table: English 'Component' → 'Module' with drift='mapped_alias'."""
+    result, drift = canonicalize_entity_type("Component")
+    assert result == "Module"
+    assert drift == "mapped_alias"
+
+
+def test_canonicalize_chinese_relation_alias_maps_to_v2_canonical():
+    """v2 alias table: Chinese '依赖' → 'DependsOn' with drift='mapped_alias'."""
+    result, drift = canonicalize_relation_type("依赖")
+    assert result == "DependsOn"
+    assert drift == "mapped_alias"
+
+
+def test_canonicalize_unknown_entity_type_falls_back_to_other_with_drift():
+    """Unknown type → fallback to 'Other' with drift='unknown_entity_type'.
+
+    This is the 兜底 contract: extraction never crashes on an unrecognized
+    LLM-emitted type; we always have a safe canonical to land in.
+    """
+    result, drift = canonicalize_entity_type("Klingon")
+    assert result == "Other"
+    assert drift == "unknown_entity_type"
+
+
+# ────────────────────────────────────────────────────────────────────────
+# C. Bilingual prompt
+# ────────────────────────────────────────────────────────────────────────
+
+
+def test_build_extraction_prompt_emits_both_english_and_chinese_directives():
+    """Bilingual contract: EN and ZH directives coexist; type listings use
+    v2 English canonical names."""
+    prompt = build_extraction_prompt("sample chunk")
+    # English-side directives
+    assert "Extract" in prompt
+    assert "Graph RAG" in prompt
+    # Chinese-side directives
+    assert "抽取" in prompt
+    # type lists must be in v2 English canonical
+    assert "System" in prompt
+    assert "FunctionalRequirement" in prompt
+
+
+def test_build_extraction_prompt_does_not_resurrect_v1_chinese_canonical_type_names():
+    """Schema v1 used '系统' as a canonical entity-type name; v2 retires it.
+
+    The only legitimate occurrence of '系统' in the prompt is inside the
+    Tier-B label '系统层'. Stripping that label, no '系统' should remain —
+    this guards against an accidental revert to v1 canonicals.
+    """
+    prompt = build_extraction_prompt("sample chunk")
+    stripped = prompt.replace("系统层", "")
+    assert "系统" not in stripped
+
+
+# ────────────────────────────────────────────────────────────────────────
+# D. Tier grouping in prompt
+# ────────────────────────────────────────────────────────────────────────
+
+
+def test_build_extraction_prompt_includes_all_five_tier_groups():
+    """The prompt must present entity types grouped by Tier A-E and tell the
+    LLM to pick a tier first. Flat 15-type listings push the LLM toward 'Other'."""
+    prompt = build_extraction_prompt("sample chunk")
+    for tier in ("Tier A", "Tier B", "Tier C", "Tier D", "Tier E"):
+        assert tier in prompt, f"prompt missing {tier}"
+    assert "tier first" in prompt.lower()
+
+
+def test_every_entity_type_is_covered_by_some_tier():
+    """Schema-drift safety: every member of ENTITY_TYPES must belong to some
+    declared tier. If somebody adds a new type to schemas.py without updating
+    ENTITY_TYPES_BY_TIER, this test fires so we don't silently lose it."""
+    assert _validate_tier_grouping() == []
+
+
+# ────────────────────────────────────────────────────────────────────────
+# E. Homonym preservation (core Step 2 bug fix)
+# ────────────────────────────────────────────────────────────────────────
+
+
+def test_normalizer_preserves_homonym_entities_with_disambiguation_suffix():
+    """Same name + different types → kept as separate nodes with '[type]' suffix.
+
+    Mirrors the production-KG identity model: a node's identity is
+    (name, type), not name alone. Old behavior force-merged them and lost
+    two of the three semantic identities depending on input order.
+    """
+    entities = [
+        Entity(name="agent", type="Module", description="software agent module"),
+        Entity(name="agent", type="Stakeholder", description="human reviewer"),
+        Entity(name="agent", type="ExternalActor", description="third-party agent"),
+    ]
+    result_entities, _, _ = normalize_entities_and_relations(entities, [])
+    assert len(result_entities) == 3
+    names = {e.name for e in result_entities}
+    assert names == {"agent[Module]", "agent[Stakeholder]", "agent[ExternalActor]"}
+
+
+def test_normalizer_flags_homonym_relation_endpoint_as_ambiguous():
+    """A relation whose source/target name matches a homonym is rewritten to
+    one of the disambiguated entities and tagged drift_reason='homonym_ambiguous'
+    so downstream evaluation can flag the edge for manual review."""
+    entities = [
+        Entity(name="agent", type="Module"),
+        Entity(name="agent", type="Stakeholder"),
+    ]
+    relations = [Relation(source="agent", target="LoginSystem", type="DependsOn")]
+
+    _, result_relations, _ = normalize_entities_and_relations(entities, relations)
+
+    assert len(result_relations) == 1
+    assert result_relations[0].drift_reason == "homonym_ambiguous"
+    # The source is rewritten to one of the disambiguated names (deterministic
+    # fallback: the first matching entity).
+    assert result_relations[0].source.startswith("agent[")
+
+
+# ────────────────────────────────────────────────────────────────────────
+# F. Same-type merge still works (regression for the homonym fix)
+# ────────────────────────────────────────────────────────────────────────
+
+
+def test_normalizer_merges_same_type_near_duplicate_names():
+    """'LoginSystem' and 'LoginSystems' under the same type → one merged node.
+
+    The homonym fix must NOT break same-type near-duplicate merging; that
+    would re-introduce node fragmentation.
+    """
+    entities = [
+        Entity(name="LoginSystem", type="Module"),
+        Entity(name="LoginSystems", type="Module"),
+    ]
+    result_entities, _, _ = normalize_entities_and_relations(entities, [])
+    assert len(result_entities) == 1
+
+
+# ────────────────────────────────────────────────────────────────────────
+# G. No suffix when there is no homonym conflict (defensive)
+# ────────────────────────────────────────────────────────────────────────
+
+
+def test_normalizer_does_not_add_suffix_when_no_homonym_conflict_exists():
+    """Distinct names with distinct types must NOT get a '[type]' suffix.
+
+    Guards against a regression where the homonym fix indiscriminately
+    renames every entity. Only true homonym conflicts trigger the suffix.
+    """
+    entities = [
+        Entity(name="LoginSystem", type="Module"),
+        Entity(name="LoginUser", type="Stakeholder"),
+    ]
+    result_entities, _, _ = normalize_entities_and_relations(entities, [])
+    assert len(result_entities) == 2
+    names = {e.name for e in result_entities}
+    assert names == {"LoginSystem", "LoginUser"}
+    assert not any("[" in name for name in names), (
+        "No '[type]' suffix should appear when names are already unambiguous"
+    )
+
+
+# ────────────────────────────────────────────────────────────────────────
+# Utility-level tests (kept — they pin pure-function behavior)
+# ────────────────────────────────────────────────────────────────────────
 
 
 def test_repair_json_payload_extracts_markdown_code_fence():
@@ -29,84 +263,14 @@ def test_normalize_entity_name_removes_common_wrappers_and_spaces():
     assert normalize_entity_name("统一 身份 认证 平台") == "统一身份认证平台"
 
 
-@pytest.mark.asyncio
-async def test_extract_chunk_preserves_raw_types_and_maps_known_drift_to_canonical_schema():
-    async def fake_llm(prompt, system_prompt=None, **kwargs):
-        return {
-            "entities": [
-                {"name": "综合管理系统", "type": "业务系统", "description": "企业内部业务管理系统"},
-                {"name": "统一身份认证平台", "type": "应用平台", "description": "提供用户登录认证能力"},
-            ],
-            "relations": [
-                {
-                    "source": "综合管理系统",
-                    "target": "统一身份认证平台",
-                    "type": "使用",
-                    "description": "综合管理系统使用统一身份认证平台完成登录",
-                    "evidence": "通过统一身份认证平台完成用户登录",
-                }
-            ],
-        }
-
-    extractor = GraphRAGExtractor(fake_llm)
-    result = await extractor.extract_chunk("综合管理系统通过统一身份认证平台完成用户登录。")
-
-    assert result.metrics.entity_type_drift_count == 2
-    assert result.metrics.relation_type_drift_count == 1
-    assert result.entities[0].raw_type == "业务系统"
-    assert result.entities[0].type == "系统"
-    assert result.entities[1].raw_type == "应用平台"
-    assert result.entities[1].type == "平台"
-    assert result.relations[0].raw_type == "使用"
-    assert result.relations[0].type == "调用"
-    assert result.relations[0].valid is True
-
-
-@pytest.mark.asyncio
-async def test_extract_chunk_maps_type_drift_and_scores_relations():
-    async def fake_llm(prompt, system_prompt=None, **kwargs):
-        assert "只输出一个 JSON 对象" in prompt
-        return json.dumps(
-            {
-                "entities": [
-                    {
-                        "name": "综合管理系统",
-                        "type": "未知业务类型",
-                        "description": "企业内部业务管理系统",
-                    },
-                    {
-                        "name": "统一身份认证平台",
-                        "type": "平台",
-                        "description": "提供用户登录认证能力",
-                    },
-                ],
-                "relations": [
-                    {
-                        "source": "综合管理系统",
-                        "target": "统一身份认证平台",
-                        "type": "协同",
-                        "description": "综合管理系统使用统一身份认证平台完成登录",
-                        "evidence": "通过统一身份认证平台完成用户登录",
-                    }
-                ],
-            },
-            ensure_ascii=False,
-        )
-
-    extractor = GraphRAGExtractor(fake_llm)
-    result = await extractor.extract_chunk(
-        "综合管理系统通过统一身份认证平台完成用户登录。",
-        chunk_id="chunk-1",
-    )
-
-    assert result.metrics.json_parse_success is True
-    assert result.metrics.schema_validation_success is True
-    assert result.metrics.entity_type_drift_count == 1
-    assert result.metrics.relation_type_drift_count == 1
-    assert result.entities[0].type == "其他"
-    assert result.relations[0].type == "关联"
-    assert result.relations[0].valid is True
-    assert result.relations[0].confidence >= 0.8
+# ────────────────────────────────────────────────────────────────────────
+# Pipeline-orchestration tests (kept from the prior suite).
+#
+# These use a fake_llm fixture as a transport. The assertions verify
+# real downstream behavior of the orchestrator (alias merging through the
+# extractor, missing-endpoint flagging, schema-incompatible-relation
+# flagging) — NOT the fake_llm content itself.
+# ────────────────────────────────────────────────────────────────────────
 
 
 @pytest.mark.asyncio

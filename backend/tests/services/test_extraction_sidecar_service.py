@@ -44,11 +44,27 @@ async def test_extraction_sidecar_parses_document_and_returns_quality_report():
     assert report["enabled"] is True
     assert report["parsed_doc_id"] == "parsed-doc-1"
     assert report["chunk_count"] == 1
-    assert report["aggregate"]["entity_type_drift_count"] == 1
-    assert report["aggregate"]["relation_type_drift_count"] == 1
-    assert report["aggregate"]["top_entity_type_drifts"] == [
-        {"raw_type": "业务系统", "canonical_type": "系统", "count": 1}
-    ]
-    assert report["aggregate"]["top_relation_type_drifts"] == [
-        {"raw_type": "使用", "canonical_type": "调用", "count": 1}
-    ]
+    # Schema v2 canonicals: '业务系统' is unknown (→ Other), '平台' and '服务'
+    # are aliases mapping to System / Module — all 3 entities drift.
+    assert report["aggregate"]["entity_type_drift_count"] == 3
+    # Relation aliases: '使用' is unknown (→ RelatedTo), '写入' → Manipulates.
+    assert report["aggregate"]["relation_type_drift_count"] == 2
+    # Compare as sets — Counter.most_common ordering for tied counts is an
+    # implementation detail we don't want this test to pin.
+    entity_drifts = {
+        (d["raw_type"], d["canonical_type"], d["count"])
+        for d in report["aggregate"]["top_entity_type_drifts"]
+    }
+    assert entity_drifts == {
+        ("业务系统", "Other", 1),
+        ("平台", "System", 1),
+        ("服务", "Module", 1),
+    }
+    relation_drifts = {
+        (d["raw_type"], d["canonical_type"], d["count"])
+        for d in report["aggregate"]["top_relation_type_drifts"]
+    }
+    assert relation_drifts == {
+        ("使用", "RelatedTo", 1),
+        ("写入", "Manipulates", 1),
+    }
