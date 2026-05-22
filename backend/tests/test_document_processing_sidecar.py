@@ -101,7 +101,10 @@ async def test_process_document_with_callback_adds_sidecar_report_when_enabled()
     assert task_svc.failed_error is None
     assert task_svc.completed_result["extraction_sidecar"]["enabled"] is True
     assert task_svc.completed_result["extraction_sidecar"]["chunk_count"] == 1
-    assert task_svc.completed_result["extraction_sidecar"]["aggregate"]["entity_type_drift_count"] == 1
+    # Schema v2 canonicals: '业务系统' → Other (unknown), '平台' → System (alias);
+    # both entity types drift.
+    assert task_svc.completed_result["extraction_sidecar"]["aggregate"]["entity_type_drift_count"] == 2
+    # Relation '使用' is unknown → RelatedTo; the single relation drifts.
     assert task_svc.completed_result["extraction_sidecar"]["aggregate"]["relation_type_drift_count"] == 1
     assert {"progress": 92, "step": "正在生成抽取质量报告"} in task_svc.progress_events
 
