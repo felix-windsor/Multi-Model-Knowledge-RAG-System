@@ -1,25 +1,22 @@
 """Tests for LightRAGWrapper — the rag_core v2 interposer on LightRAG.
 
-We test the pure-transform staticmethods (``_apply_rag_core_v2``,
-``_to_*``, ``_canonicalize_entity_type_ci``) rather than the async
-``_process_extract_entities`` override, because:
+After Task 3.3 there are TWO surfaces under test:
 
-  - LightRAG requires real storage backends to instantiate, which would
-    turn unit tests into integration tests.
-  - The override is a 3-line shim: ``super().call → _apply_rag_core_v2``.
-    Its only logic is verified via the staticmethod tests.
-  - The wire-up itself (subclass relationship, that the override exists
-    and calls super correctly) is verified by the ``test_wrapper_*``
-    structural tests below.
+  Phase C (live):  _process_extract_entities calls GraphRAGExtractor
+                   directly, bypassing LightRAG's native extraction. Tests
+                   in the "Phase C" section below cover this path using a
+                   monkeypatched GraphRAGExtractor (no real LLM).
 
-Test surface:
-  1. Subclass relationship is correct.
-  2. v1-style Chinese type names get canonicalized to v2 English canonicals.
-  3. LightRAG's lowercased English types still match v2 canonicals
-     (case-insensitive lookup fix).
-  4. Homonym entities are preserved as separate disambiguated nodes.
-  5. Empty input passes through.
-  6. rag_core exceptions fall back to the raw chunk (no crash).
+  Phase B (deprecated, kept for fall-back / legacy ingestion):
+                   _apply_rag_core_v2 + its helpers still post-process
+                   LightRAG-native chunk_results. Tests in the "Phase B
+                   (deprecated)" section pin their behavior so the fall-back
+                   path can't silently rot.
+
+We avoid instantiating LightRAGWrapper directly because LightRAG requires
+real storage backends to construct. Instead we use a ``_MockSelf`` shim
+that exposes only ``llm_model_func`` — the single attribute the live
+extraction path reads from ``self``.
 """
 
 from __future__ import annotations
@@ -32,9 +29,41 @@ from app.rag_core.lightrag_wrapper import (
     LightRAGWrapper,
     _canonicalize_entity_type_ci,
 )
+from app.rag_core.schemas import Entity, ExtractionResult, Relation
 
 
-# ── 1. Subclass relationship ─────────────────────────────────────────────
+# ── Test fixtures / helpers ──────────────────────────────────────────────
+
+
+class _MockSelf:
+    """Minimal stand-in for a LightRAG instance.
+
+    The phase-C ``_process_extract_entities`` only reads ``self.llm_model_func``.
+    Using a fake-self avoids the heavy storage-backend init real LightRAG
+    requires.
+    """
+
+    @staticmethod
+    def llm_model_func(*_args, **_kwargs):  # pragma: no cover — never invoked
+        raise AssertionError("llm_model_func should not be called in unit tests")
+
+
+def _build_chunk(content: str, *, file_path: str | None = None) -> dict:
+    """Build a TextChunkSchema-shaped dict for one chunk."""
+    chunk = {
+        "tokens": max(len(content), 1),
+        "content": content,
+        "full_doc_id": "doc-1",
+        "chunk_order_index": 0,
+    }
+    if file_path is not None:
+        chunk["file_path"] = file_path
+    return chunk
+
+
+# ═════════════════════════════════════════════════════════════════════════
+# Structural tests (apply to both phases)
+# ═════════════════════════════════════════════════════════════════════════
 
 
 def test_wrapper_is_lightrag_subclass():
@@ -57,7 +86,12 @@ def test_wrapper_overrides_process_extract_entities_directly():
     assert "_process_extract_entities" in LightRAGWrapper.__dict__
 
 
-# ── 2. Type canonicalization (v1 Chinese → v2 English) ───────────────────
+# ═════════════════════════════════════════════════════════════════════════
+# Phase B (DEPRECATED) — pins the post-process helpers used as fall-back.
+# These tests do NOT exercise the live extraction path; see the Phase-C
+# section at the bottom for that. Kept to prevent silent rot of the
+# fall-back helpers and the case-insensitive lookup that protects them.
+# ═════════════════════════════════════════════════════════════════════════
 
 
 def test_wrapper_canonicalizes_chinese_entity_type_to_v2_english():
@@ -363,3 +397,278 @@ def test_wrapper_preserves_lightrag_metadata_through_round_trip():
     assert edge["keywords"] == "depends_on, requires"
     # Canonical v2 type exposed separately.
     assert edge["_rag_core_canonical_type"] == "DependsOn"
+
+
+# ═════════════════════════════════════════════════════════════════════════
+# Phase C (LIVE) — wrapper routes every chunk through GraphRAGExtractor
+# instead of LightRAG's native extraction. These tests monkeypatch the
+# module-level GraphRAGExtractor name so no real LLM is invoked.
+# ═════════════════════════════════════════════════════════════════════════
+
+
+def _make_fake_extractor_cls(
+    *,
+    per_chunk_result: dict[str, ExtractionResult] | None = None,
+    raise_for: set[str] | None = None,
+    default_result: ExtractionResult | None = None,
+    call_log: list | None = None,
+):
+    """Build a fake GraphRAGExtractor class for monkeypatching.
+
+    - per_chunk_result: chunk_id → ExtractionResult to return.
+    - raise_for: chunk_ids for which extract_chunk should raise ValueError.
+    - default_result: returned for chunk_ids not covered by per_chunk_result.
+    - call_log: optional list to append (text, chunk_id) tuples to per call.
+    """
+    per_chunk_result = per_chunk_result or {}
+    raise_for = raise_for or set()
+    default_result = default_result or ExtractionResult(entities=[], relations=[])
+
+    class _FakeExtractor:
+        def __init__(self, llm_func=None, config=None):
+            self.llm_func = llm_func
+            self.config = config
+
+        async def extract_chunk(self, text, chunk_id=None):
+            if call_log is not None:
+                call_log.append((text, chunk_id))
+            if chunk_id in raise_for:
+                raise ValueError(f"simulated failure for {chunk_id}")
+            return per_chunk_result.get(chunk_id, default_result)
+
+    return _FakeExtractor
+
+
+@pytest.mark.asyncio
+async def test_wrapper_phase_c_uses_graph_rag_extractor_not_super(monkeypatch):
+    """The live path must invoke ``GraphRAGExtractor.extract_chunk`` for
+    every non-empty chunk and must NOT call ``super()._process_extract_entities``
+    (which is what triggers LightRAG's native LLM prompt)."""
+    from app.rag_core import lightrag_wrapper as wrapper_mod
+
+    call_log: list = []
+    fake_cls = _make_fake_extractor_cls(call_log=call_log)
+    monkeypatch.setattr(wrapper_mod, "GraphRAGExtractor", fake_cls)
+
+    # Tripwire: if super() were called we'd be told.
+    super_called = []
+
+    async def _tripwire(*_a, **_kw):
+        super_called.append(True)
+        return []
+
+    monkeypatch.setattr(
+        "lightrag.lightrag.LightRAG._process_extract_entities", _tripwire
+    )
+
+    chunks = {
+        "c1": _build_chunk("alpha"),
+        "c2": _build_chunk("beta"),
+    }
+    result = await LightRAGWrapper._process_extract_entities(_MockSelf(), chunks)
+
+    assert len(result) == 2
+    assert [cid for _, cid in call_log] == ["c1", "c2"]
+    assert super_called == [], "super()._process_extract_entities must NOT be invoked"
+
+
+@pytest.mark.asyncio
+async def test_wrapper_phase_c_output_uses_v2_canonical_entity_type(monkeypatch):
+    """v2 canonical type from the extractor must survive into the LightRAG
+    dict shape unchanged — the whole point of phase C."""
+    from app.rag_core import lightrag_wrapper as wrapper_mod
+
+    fake_cls = _make_fake_extractor_cls(
+        per_chunk_result={
+            "c1": ExtractionResult(
+                entities=[
+                    Entity(
+                        name="LoginFlow",
+                        type="FunctionalRequirement",
+                        raw_type="FunctionalRequirement",
+                        canonical_type="FunctionalRequirement",
+                        description="user login flow",
+                    )
+                ],
+                relations=[],
+            )
+        }
+    )
+    monkeypatch.setattr(wrapper_mod, "GraphRAGExtractor", fake_cls)
+
+    chunks = {"c1": _build_chunk("user logs in via SSO")}
+    result = await LightRAGWrapper._process_extract_entities(_MockSelf(), chunks)
+    nodes, _edges = result[0]
+
+    entity_dict = nodes["LoginFlow"][0]
+    assert entity_dict["entity_type"] == "FunctionalRequirement"
+    assert entity_dict["_rag_core_canonical_type"] == "FunctionalRequirement"
+    assert entity_dict["_rag_core_drift_reason"] is None
+
+
+@pytest.mark.asyncio
+async def test_wrapper_phase_c_one_chunk_failure_does_not_crash_batch(
+    monkeypatch, caplog
+):
+    """Per-chunk fault isolation: a ValueError on chunk c2 must not stop
+    c1 / c3 from being processed normally."""
+    from app.rag_core import lightrag_wrapper as wrapper_mod
+
+    def _ent(name):
+        return Entity(name=name, type="Module", canonical_type="Module")
+
+    fake_cls = _make_fake_extractor_cls(
+        per_chunk_result={
+            "c1": ExtractionResult(entities=[_ent("E_c1")], relations=[]),
+            "c3": ExtractionResult(entities=[_ent("E_c3")], relations=[]),
+        },
+        raise_for={"c2"},
+    )
+    monkeypatch.setattr(wrapper_mod, "GraphRAGExtractor", fake_cls)
+
+    chunks = {
+        "c1": _build_chunk("alpha"),
+        "c2": _build_chunk("beta"),
+        "c3": _build_chunk("gamma"),
+    }
+    with caplog.at_level(logging.ERROR, logger=wrapper_mod.logger.name):
+        result = await LightRAGWrapper._process_extract_entities(_MockSelf(), chunks)
+
+    assert len(result) == 3
+    assert "E_c1" in result[0][0]
+    assert result[1] == ({}, {})  # c2 yields empty after failure
+    assert "E_c3" in result[2][0]
+    assert any(
+        "GraphRAGExtractor failed" in r.message for r in caplog.records
+    )
+
+
+@pytest.mark.asyncio
+async def test_wrapper_phase_c_output_shape_matches_lightrag_merge_contract(
+    monkeypatch,
+):
+    """Smoke-check the dict shape — every required LightRAG field is present.
+
+    Locks the contract with ``merge_nodes_and_edges`` downstream so a future
+    refactor that drops a field is caught here, not in production.
+    """
+    from app.rag_core import lightrag_wrapper as wrapper_mod
+
+    fake_cls = _make_fake_extractor_cls(
+        per_chunk_result={
+            "c1": ExtractionResult(
+                entities=[
+                    Entity(
+                        name="A",
+                        type="Module",
+                        canonical_type="Module",
+                        description="a",
+                    ),
+                    Entity(
+                        name="B",
+                        type="System",
+                        canonical_type="System",
+                        description="b",
+                    ),
+                ],
+                relations=[
+                    Relation(
+                        source="A",
+                        target="B",
+                        type="DependsOn",
+                        canonical_type="DependsOn",
+                        description="A depends on B",
+                        evidence="A uses B",
+                        confidence=0.85,
+                        valid=True,
+                    )
+                ],
+            )
+        }
+    )
+    monkeypatch.setattr(wrapper_mod, "GraphRAGExtractor", fake_cls)
+
+    chunks = {"c1": _build_chunk("...", file_path="/path/x.md")}
+    result = await LightRAGWrapper._process_extract_entities(_MockSelf(), chunks)
+    nodes, edges = result[0]
+
+    required_node_keys = {
+        "entity_name", "entity_type", "description",
+        "source_id", "file_path", "timestamp",
+    }
+    for name, dups in nodes.items():
+        for d in dups:
+            missing = required_node_keys - d.keys()
+            assert not missing, f"entity {name!r} missing LightRAG keys: {missing}"
+
+    required_edge_keys = {
+        "src_id", "tgt_id", "weight", "description", "keywords",
+        "source_id", "file_path", "timestamp",
+    }
+    for key, edges_list in edges.items():
+        for e in edges_list:
+            missing = required_edge_keys - e.keys()
+            assert not missing, f"edge {key} missing LightRAG keys: {missing}"
+
+    # chunk_data['file_path'] propagates to every entity/edge dict.
+    assert nodes["A"][0]["file_path"] == "/path/x.md"
+    assert list(edges.values())[0][0]["file_path"] == "/path/x.md"
+    # Source id is the chunk id.
+    assert nodes["A"][0]["source_id"] == "c1"
+    # Confidence becomes edge weight.
+    assert list(edges.values())[0][0]["weight"] == pytest.approx(0.85)
+    # keywords = canonical relation type (for LightRAG's keyword retrieval).
+    assert list(edges.values())[0][0]["keywords"] == "DependsOn"
+
+
+@pytest.mark.asyncio
+async def test_wrapper_phase_c_skips_extraction_for_empty_chunk_content(
+    monkeypatch,
+):
+    """If a chunk has empty content the wrapper must yield ({}, {}) WITHOUT
+    calling the extractor (saves an LLM round-trip)."""
+    from app.rag_core import lightrag_wrapper as wrapper_mod
+
+    call_log: list = []
+    fake_cls = _make_fake_extractor_cls(call_log=call_log)
+    monkeypatch.setattr(wrapper_mod, "GraphRAGExtractor", fake_cls)
+
+    chunks = {
+        "c1": _build_chunk(""),  # empty content
+        "c2": _build_chunk("real content"),
+    }
+    result = await LightRAGWrapper._process_extract_entities(_MockSelf(), chunks)
+
+    assert result[0] == ({}, {})  # c1: empty content → no extraction call
+    assert call_log == [("real content", "c2")]  # only c2 reached the extractor
+    assert len(result) == 2
+
+
+@pytest.mark.asyncio
+async def test_wrapper_phase_c_propagates_homonym_disambiguation(monkeypatch):
+    """When ``GraphRAGExtractor`` returns entities whose names already carry
+    a ``[type]`` homonym suffix (because normalize_entities_and_relations ran
+    inside extract_chunk), the wrapper keeps them as separate node dicts."""
+    from app.rag_core import lightrag_wrapper as wrapper_mod
+
+    fake_cls = _make_fake_extractor_cls(
+        per_chunk_result={
+            "c1": ExtractionResult(
+                entities=[
+                    Entity(name="agent[Module]", type="Module", canonical_type="Module"),
+                    Entity(name="agent[Stakeholder]", type="Stakeholder",
+                           canonical_type="Stakeholder"),
+                ],
+                relations=[],
+            )
+        }
+    )
+    monkeypatch.setattr(wrapper_mod, "GraphRAGExtractor", fake_cls)
+
+    chunks = {"c1": _build_chunk("...")}
+    result = await LightRAGWrapper._process_extract_entities(_MockSelf(), chunks)
+    nodes, _ = result[0]
+
+    assert set(nodes.keys()) == {"agent[Module]", "agent[Stakeholder]"}
+    assert nodes["agent[Module]"][0]["entity_type"] == "Module"
+    assert nodes["agent[Stakeholder]"][0]["entity_type"] == "Stakeholder"

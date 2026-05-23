@@ -159,6 +159,30 @@ ENTITY_TYPE_ALIASES = {
     "Regulation": "Constraint",
     "Priority": "Constraint",
     "Complexity Score": "Constraint",
+    # LightRAG default entity types (lowercased by LightRAG internally)
+    # Both lowercase and capitalized variants for safety
+    "concept": "Other",
+    "Concept": "Other",
+    "method": "Module",
+    "Method": "Module",
+    "artifact": "Module",
+    "Artifact": "Module",
+    "content": "DataEntity",
+    "Content": "DataEntity",
+    "data": "DataEntity",
+    "Data": "DataEntity",
+    "organization": "ExternalActor",
+    "Organization": "ExternalActor",
+    "event": "Process",
+    "Event": "Process",
+    "location": "Other",
+    "Location": "Other",
+    "geo": "Other",
+    "Geo": "Other",
+    "person": "Stakeholder",
+    "Person": "Stakeholder",
+    "category": "Other",
+    "Category": "Other",
 }
 
 
