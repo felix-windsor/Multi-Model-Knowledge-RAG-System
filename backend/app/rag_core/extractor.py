@@ -64,7 +64,10 @@ class GraphRAGExtractor:
         metrics.relations_before_filtering = len(relations)
 
         entities, relations, _ = normalize_entities_and_relations(entities, relations)
-        scored_relations = [score_relation(relation, entities) for relation in relations]
+        scored_relations = [
+            score_relation(relation, entities, chunk_text=chunk_text)
+            for relation in relations
+        ]
         if self.config.drop_invalid_relations:
             scored_relations = [relation for relation in scored_relations if relation.valid]
 

@@ -25,6 +25,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 load_dotenv(dotenv_path=".env", override=False)
 
 from lightrag import LightRAG
+from app.rag_core.lightrag_wrapper import LightRAGWrapper
 from lightrag.utils import logger
 
 # Import configuration and modules
@@ -336,7 +337,7 @@ class RAGAnything(QueryMixin, ProcessorMixin, BatchMixin):
 
             try:
                 # Create LightRAG instance with merged parameters
-                self.lightrag = LightRAG(**lightrag_params)
+                self.lightrag = LightRAGWrapper(**lightrag_params)
                 await self.lightrag.initialize_storages()
                 await initialize_pipeline_status()
 
