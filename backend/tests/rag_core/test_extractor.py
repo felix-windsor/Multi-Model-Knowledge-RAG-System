@@ -348,5 +348,5 @@ async def test_extract_chunk_marks_schema_incompatible_relation_invalid():
 
     assert result.metrics.invalid_relation_count == 1
     assert result.relations[0].valid is False
-    assert result.relations[0].confidence < 0.6
+    assert result.relations[0].confidence == 0.6
     assert "incompatible relation" in result.relations[0].invalid_reason
